@@ -1,0 +1,28 @@
+﻿R e a d m e
+-----------
+
+In this file you can include any instructions or other comments you want to have injected onto the 
+top of your final script. You can safely delete this file if you do not want any such comments.
+
+
+
+# Design
+
+Concept:
+This missile script will be used for medium - long range targets,
+received either directly through the network or for closer ranges through targeting modules on the missiles themselves.
+
+Features it will need:
+- Efficient Cruise Ballistic trajectories for long ranges
+- Planet Circumnavigation (over the horizon functionality)
+- Bulldog/Final Targeting done by PNav using Internal Guidance if aquisition is possible
+- Target Data Ingress through DataLink network
+- Selecting Targets from DataLink Network
+UI:
+- Displaying selected Target Information
+- Updateing DataLink Network on currently Targeted Entity
+- Show possible states of lock internal/missile/external
+- Show state of missile in flight
+    - Lock Status
+    - Distance to Target
+
