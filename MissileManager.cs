@@ -36,7 +36,7 @@ namespace IngameScript
                 List<IMyWarhead> warheads,
                 List<IMyGasTank> gasTanks,
                 List<IMyBatteryBlock> batteries,
-                DLBus.DLBusDetectedEntity target)
+                DLBus.DLBusDetectedEntity target = null)
             {
                 foreach (var mergeBlock in mergeBlocks)
                 {
@@ -127,7 +127,8 @@ namespace IngameScript
             {
                 foreach (var missile in launchedMissiles)
                 {
-                    missile.Flight(currentPbTime);
+                    if (missile.Health != Missile.MissileHealth.Dead)
+                        missile.Flight(currentPbTime);
                 }
             }
 
@@ -135,6 +136,9 @@ namespace IngameScript
             {
                 foreach (var missile in launchedMissiles)
                 {
+                    if (missile.Health == Missile.MissileHealth.Dead)
+                        continue;
+
                     foreach (var updatedEntity in updatedEntities)
                     {
                         if (missile.ExternalTarget.EntityId == updatedEntity.EntityId)
@@ -142,6 +146,14 @@ namespace IngameScript
                             missile.UpdateTargetedEntity(updatedEntity);
                         }
                     }
+                }
+            }
+
+            public void UpdatePlanetValuses(Vector3D planetCenter, double gravity)
+            {
+                foreach (var missile in launchedMissiles)
+                {
+                    missile.UpdatePlanetValues(planetCenter, gravity);
                 }
             }
         }

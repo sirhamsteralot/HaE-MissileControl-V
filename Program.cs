@@ -212,6 +212,8 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            HandleUserArguments(argument);
+
             if ((updateSource | UpdateType.Update1) == UpdateType.Update1)
             {
                 dlBus.ProcessListeners(Runtime.LifetimeTicks);
@@ -226,8 +228,46 @@ namespace IngameScript
 
             if ((updateSource | UpdateType.Update100) == UpdateType.Update100)
             {
-                
+                if (mainCockpit != null && mainCockpit.IsFunctional)
+                {
+                    Vector3D planetPosition;
+                    if (mainCockpit.TryGetPlanetPosition(out planetPosition)) {
+                        missileManager.UpdatePlanetValuses(planetPosition, mainCockpit.GetNaturalGravity().Length());
+                    }
+                }
             }
+        }
+
+        public bool HandleUserArguments(string argument)
+        {
+            if (argument == string.Empty)
+            {
+                return false;
+            }
+
+            string normalizedArgument = argument.ToLower().Trim();
+            if (normalizedArgument == "export")
+            {
+                ExportConfig();
+                return true;
+            }
+
+            if (normalizedArgument.StartsWith("select "))
+            {
+                // TODO
+            }
+
+            if (normalizedArgument.StartsWith("deselect"))
+            {
+                // TODO
+            }
+
+            if (normalizedArgument.StartsWith("dumblaunch"))
+            {
+                scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries));
+            }
+
+            return false;
         }
 
         private void OnNetworkEntityDetected(DLBus.DLBusDetectedEntity detectedEntity)
