@@ -25,7 +25,8 @@ namespace IngameScript
         public class Missile
         {
             private const double ExternalToRadarToleranceSquared = 2000 * 2000;
-            private const double NavP = 10;
+            private double NavP = 4.0; // Navigation constant (tune as needed)
+            private double dampingFactor = 0.1; // Optional damping
 
             public enum MissileHealth
             {
@@ -181,18 +182,41 @@ namespace IngameScript
 
             private void FlightTerminal(long currentPbTime)
             {
-                Vector3D distanceFromTarget = radarTrackingModule.TargetPosition - Position;
-                UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
+                Vector3D targetPos = radarTrackingModule.TargetPosition;
+                Vector3D targetVel = radarTrackingModule.TargetVelocity;
 
-                Vector3D closingVelocity = Velocity - radarTrackingModule.TargetVelocity;
+                Vector3D rangeVec = targetPos - Position;
+                double rangeSq = rangeVec.LengthSquared();
 
-                Vector3D pnavDirection = CalculateLateralAccel(distanceFromTarget, closingVelocity);
+                // Ensure radar updates are timely
+                UpdateRadarRefreshRate(rangeSq);
 
-                Vector3D aimDir = Vector3D.Normalize(pnavDirection + distanceFromTarget); 
+                // Relative velocity (target - missile)
+                Vector3D relativeVel = targetVel - Velocity;
 
-                AimInDirection(aimDir);
-                ThrustUtils.SetThrustBasedDot(thrusters, aimDir);
+                // Closing speed (positive scalar)
+                double closingSpeed = -Vector3D.Dot(relativeVel, Vector3D.Normalize(rangeVec));
+
+                // LOS angular rate
+                Vector3D omegaL = Vector3D.Cross(rangeVec, relativeVel) / rangeSq;
+
+                // PN acceleration command
+                Vector3D pnavAccel = NavP * closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(rangeVec));
+
+                // Optional derivative damping
+                Vector3D derivative = (pnavAccel - oldAccelTarget) * dampingFactor;
+                oldAccelTarget = pnavAccel;
+                pnavAccel += derivative;
+
+                // Optional terminal bias toward final intercept
+                Vector3D leadBias = 0.1 * rangeVec; // Tune this coefficient
+                Vector3D aimDirection = Vector3D.Normalize(pnavAccel + leadBias);
+
+                // Apply guidance
+                AimInDirection(aimDirection);
+                ThrustUtils.SetThrustBasedDot(thrusters, aimDirection);
             }
+
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
             {
@@ -381,17 +405,13 @@ namespace IngameScript
 
             private Vector3D CalculateLateralAccel(Vector3D rangeVec, Vector3D closingVelocity)
             {
-                Vector3D RxV = Vector3D.Cross(rangeVec, closingVelocity);
-                Vector3D RdR = rangeVec * rangeVec;
-                Vector3D rotVec = RxV / RdR;
+                double closingSpeed = -Vector3D.Dot(closingVelocity, Vector3D.Normalize(rangeVec));
 
-                Vector3D accelerationNormal = (NavP * closingVelocity).Cross(rotVec);
+                Vector3D omegaL = Vector3D.Cross(rangeVec, closingVelocity) / rangeVec.LengthSquared();
 
-                Vector3D deltaError = accelerationNormal - oldAccelTarget;
+                Vector3D accelCommand = NavP * closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(rangeVec));
 
-                oldAccelTarget = accelerationNormal;
-
-                return accelerationNormal;
+                return accelCommand;
             }
 
             private void AimInDirection(Vector3D aimdirection)
