@@ -30,7 +30,7 @@ namespace IngameScript
 
         string scriptExcludeTag = "#ExMissileControlV#";
         string scriptIncludeTag = "#MissileControlV#";
-        int cockpitLCD = 1;
+        int cockpitLCD = 0;
 
         List<IMyTextPanel> textPanels = new List<IMyTextPanel>();
         List<IMyFlightMovementBlock> movementBlocks = new List<IMyFlightMovementBlock>();
@@ -53,6 +53,7 @@ namespace IngameScript
             ImportConfig();
 
             FetchBlocks();
+            FetchMissileBlocks();
 
             Initialize();
         }
@@ -75,7 +76,7 @@ namespace IngameScript
             Ini.AddSection(INISettingsHeader);
             Ini.Set(INISettingsHeader, "ScriptExcludeTag", "#ExMissileCtrl#");
             Ini.Set(INISettingsHeader, "TextPanelIncludeTag", "#MissileCtrl#");
-            Ini.Set(INISettingsHeader, "CockpitLCDSelection", 2);
+            Ini.Set(INISettingsHeader, "CockpitLCDSelection", 0);
 
             Me.CustomData = Ini.ToString();
         }
@@ -111,6 +112,30 @@ namespace IngameScript
 
                     return false;
                 }
+
+                var cockpit = x as IMyCockpit;
+                if (cockpit != null)
+                {
+                    if (mainCockpit == null || cockpit.IsMainCockpit)
+                    {
+                        mainCockpit = cockpit;
+                        return false;
+                    }
+                }
+
+                return false;
+            });
+        }
+
+        private void FetchMissileBlocks()
+        {
+            GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, x =>
+            {
+                if (x.CustomData.Contains(scriptExcludeTag))
+                    return false;
+
+                if (x.CustomName.Contains(scriptExcludeTag))
+                    return false;
 
                 var movementBlock = x as IMyFlightMovementBlock;
                 if (movementBlock != null)
@@ -150,16 +175,6 @@ namespace IngameScript
                 {
                     thrusters.Add(thruster);
                     return false;
-                }
-
-                var cockpit = x as IMyCockpit;
-                if (cockpit != null)
-                {
-                    if (mainCockpit == null || cockpit.IsMainCockpit)
-                    {
-                        mainCockpit = cockpit;
-                        return false;
-                    }
                 }
 
                 var gasTank = x as IMyGasTank;

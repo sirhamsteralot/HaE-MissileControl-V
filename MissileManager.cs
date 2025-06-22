@@ -26,7 +26,96 @@ namespace IngameScript
         {
             public List<Missile> missiles = new List<Missile>();
 
-            
+            public IEnumerator<bool> LaunchMissile(
+                IMyTerminalBlock referenceBlock,
+                List<IMyFlightMovementBlock> movementBlocks,
+                List<IMyOffensiveCombatBlock> combatBlocks,
+                List<IMyShipMergeBlock> mergeBlocks,
+                List<IMyGyro> gyros,
+                List<IMyThrust> thrusters,
+                List<IMyWarhead> warheads,
+                List<IMyGasTank> gasTanks,
+                List<IMyBatteryBlock> batteries)
+            {
+                foreach (var mergeBlock in mergeBlocks)
+                {
+                    if (mergeBlock.IsConnected && mergeBlock.Enabled)
+                    {
+                        mergeBlock.Enabled = false;
+                        break;
+                    }
+                }
+
+                yield return true;
+
+                Missile missile = new Missile();
+
+                for (int i = gyros.Count - 1; i >= 0; i--)
+                {
+                    if (!gyros[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.gyros.Add(gyros[i]);
+                        gyros.RemoveAt(i);
+                    }
+                }
+
+                for (int i = movementBlocks.Count - 1; i >= 0; i--)
+                {
+                    if (!movementBlocks[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.flightMovementBlock = movementBlocks[i];
+                        movementBlocks.RemoveAt(i);
+                    }
+                }
+
+                for (int i = combatBlocks.Count - 1; i >= 0; i--)
+                {
+                    if (!combatBlocks[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.offensiveCombatBlock = combatBlocks[i];
+                        combatBlocks.RemoveAt(i);
+                    }
+                }
+
+                for (int i = thrusters.Count - 1; i >= 0; i--)
+                {
+                    if (!thrusters[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.thrusters.Add(thrusters[i]);
+                        thrusters.RemoveAt(i);
+                    }
+                }
+
+                for (int i = warheads.Count - 1; i >= 0; i--)
+                {
+                    if (!warheads[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.warheads.Add(warheads[i]);
+                        warheads.RemoveAt(i);
+                    }
+                }
+
+                for (int i = gasTanks.Count - 1; i >= 0; i--)
+                {
+                    if (!gasTanks[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.gasTanks.Add(gasTanks[i]);
+                        gasTanks.RemoveAt(i);
+                    }
+                }
+
+                for (int i = batteries.Count - 1; i >= 0; i--)
+                {
+                    if (!batteries[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.batteries.Add(batteries[i]);
+                        batteries.RemoveAt(i);
+                    }
+                }
+
+                missiles.Add(missile);
+            }
         }
     }
 }
+

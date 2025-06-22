@@ -256,13 +256,12 @@ namespace IngameScript
             /// <summary>
             /// Checks State Of Blocks Internal
             /// </summary>
-            public bool CheckWorking(out string errormsg)
+            public bool CheckWorking()
             {
                 if (L_FlightBlock == null || L_FlightBlock.Closed || !L_FlightBlock.IsWorking)
-                { errormsg = " ~ AI Flight Block Not Found,\nInstall Block And Press Recompile"; return false; }
+                {return false; }
                 if (L_CombatBLock == null || L_CombatBLock.Closed || !L_CombatBLock.IsWorking)
-                { errormsg = " ~ AI Combat Block Not Found,\nInstall Block And Press Recompile"; return false; }
-                errormsg = null;
+                {return false; }
                 return true;
             }
 
