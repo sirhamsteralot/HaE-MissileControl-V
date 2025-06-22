@@ -26,8 +26,6 @@ namespace IngameScript
         {
             private const double ExternalToRadarToleranceSquared = 2000 * 2000;
             private const double NavP = 10;
-            private const double NavD = 1;
-            private const double NavI = 0;
 
             public enum MissileHealth
             {
@@ -190,7 +188,7 @@ namespace IngameScript
 
                 Vector3D pnavDirection = CalculateLateralAccel(distanceFromTarget, closingVelocity);
 
-                Vector3D aimDir = Vector3D.Normalize(pnavDirection + distanceFromTarget);
+                Vector3D aimDir = Vector3D.Normalize(pnavDirection + distanceFromTarget); 
 
                 AimInDirection(aimDir);
                 ThrustUtils.SetThrustBasedDot(thrusters, aimDir);
@@ -383,18 +381,17 @@ namespace IngameScript
 
             private Vector3D CalculateLateralAccel(Vector3D rangeVec, Vector3D closingVelocity)
             {
-                // Calculate rotation vec
                 Vector3D RxV = Vector3D.Cross(rangeVec, closingVelocity);
                 Vector3D RdR = rangeVec * rangeVec;
                 Vector3D rotVec = RxV / RdR;
 
-                // Pronav term
-                Vector3D accelerationNormal = (closingVelocity).Cross(rotVec);
+                Vector3D accelerationNormal = (NavP * closingVelocity).Cross(rotVec);
 
                 Vector3D deltaError = accelerationNormal - oldAccelTarget;
 
                 oldAccelTarget = accelerationNormal;
-                return (NavP * accelerationNormal + NavD * deltaError);
+
+                return accelerationNormal;
             }
 
             private void AimInDirection(Vector3D aimdirection)
