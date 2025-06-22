@@ -24,6 +24,8 @@ namespace IngameScript
     {
         public class Missile
         {
+            private const double ExternalToRadarToleranceSquared = 2000 * 2000;
+
             public enum MissileHealth
             {
                 Unknown,
@@ -53,6 +55,13 @@ namespace IngameScript
             public MissileHealth Health { get; private set; }
             public long lifeTimeCounter { get; private set; }
 
+            private long lastPositionVelocityUpdateTime = 0;
+            public Vector3D Position { get; private set; }
+            public Vector3D Velocity { get; private set; }
+
+            private DLBus.DLBusDetectedEntity ExternalTarget { get; set; }
+
+
             private RadarTrackingModule radarTrackingModule;
 
             public Missile()
@@ -66,11 +75,12 @@ namespace IngameScript
                 if (flightMovementBlock != null && offensiveCombatBlock != null)
                 {
                     radarTrackingModule = new RadarTrackingModule(flightMovementBlock, offensiveCombatBlock);
+                    radarTrackingModule.RefreshRate = 10;
                 }
 
                 lifeTimeCounter = 0;
 
-                Health = CheckMissileHealth();
+                UpdateMissileHealth();
 
                 if (Health == MissileHealth.Healthy || Health == MissileHealth.Degraded)
                 {
@@ -81,16 +91,89 @@ namespace IngameScript
                 return false;
             }
 
-            public MissileHealth CheckMissileHealth()
+            public void Flight(long currentPbTime)
+            {
+                UpdateTrackingInformation(currentPbTime);
+                UpdateMissileVelocityPosition(currentPbTime);
+
+                if (lifeTimeCounter % 60 == 0)
+                {
+                    UpdateMissileHealth();
+                }
+
+                switch (FlightState)
+                {
+                    case MissileFlightState.Launching:
+                        FlightLaunching(currentPbTime);
+                        break;
+
+                    case MissileFlightState.Cruising:
+                        FlightCruising(currentPbTime);
+                        break;
+
+                    case MissileFlightState.Terminal:
+                        FlightTerminal(currentPbTime);
+                        break;
+
+                    default:
+                        throw new Exception("missile flight state unknown or other; this should never be reached");
+                }
+                
+                lifeTimeCounter++;
+            }
+
+            public void UpdateTargetedEntity(DLBus.DLBusDetectedEntity detectedEntity)
+            {
+                ExternalTarget = detectedEntity;
+            }
+
+            private void FlightLaunching(long currentPbTime)
+            {
+                
+            }
+
+            private void FlightCruising(long currentPbTime)
+            {
+                Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
+
+                Vector3D distanceFromTarget = predictedExternalPosition - Position;
+
+                UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
+            }
+
+            private void FlightTerminal(long currentPbTime)
+            {
+                
+            }
+
+            private void UpdateRadarRefreshRate(double distanceToTargetSquared)
+            {
+                if (distanceToTargetSquared > 1500 * 1500)
+                {
+                    radarTrackingModule.RefreshRate = 10;
+                }
+                else if (distanceToTargetSquared > 1000 * 1000)
+                {
+                    radarTrackingModule.RefreshRate = 5;
+                }
+                else
+                {
+                    radarTrackingModule.RefreshRate = 1;
+                }
+            }
+
+            private void UpdateMissileHealth()
             {
                 if (radarTrackingModule == null)
                 {
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 if (!radarTrackingModule.CheckWorking())
                 {
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 int thrusterWorkingCount = thrusters.Count(x => x.IsWorking);
@@ -99,10 +182,12 @@ namespace IngameScript
                 {
                     if (thrusterWorkingCount == 0)
                     {
-                        return MissileHealth.Dead;
+                        Health = MissileHealth.Dead;
+                        return;
                     }
 
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 int gyroWorkingCount = gyros.Count(x => x.IsWorking);
@@ -110,10 +195,12 @@ namespace IngameScript
                 {
                     if (gyroWorkingCount == 0)
                     {
-                        return MissileHealth.Dead;
+                        Health = MissileHealth.Dead;
+                        return;
                     }
 
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 int warheadWorkingCount = warheads.Count(x => x.IsWorking);
@@ -122,10 +209,12 @@ namespace IngameScript
                 {
                     if (warheadWorkingCount == 0)
                     {
-                        return MissileHealth.Dead;
+                        Health = MissileHealth.Dead;
+                        return;
                     }
 
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 int gasTankWorkingCount = gasTanks.Count(x => x.IsWorking);
@@ -134,10 +223,12 @@ namespace IngameScript
                 {
                     if (gasTankWorkingCount == 0)
                     {
-                        return MissileHealth.Dead;
+                        Health = MissileHealth.Dead;
+                        return;
                     }
 
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
                 int batteryWorkingCount = batteries.Count(x => x.IsWorking);
@@ -146,14 +237,58 @@ namespace IngameScript
                 {
                     if (batteryWorkingCount == 0)
                     {
-                        return MissileHealth.Dead;
+                        Health = MissileHealth.Dead;
+                        return;
                     }
 
-                    return MissileHealth.Degraded;
+                    Health = MissileHealth.Degraded;
+                    return;
                 }
 
-                return MissileHealth.Healthy;
+                Health = MissileHealth.Healthy;
             }
+
+            private void UpdateTrackingInformation(long currentPbTime)
+            {
+                if (lifeTimeCounter % radarTrackingModule.RefreshRate == 0)
+                    radarTrackingModule.UpdateTracking(currentPbTime);
+
+                if (radarTrackingModule.IsTracking)
+                {
+                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
+                    if (FlightState == MissileFlightState.Cruising && Vector3D.DistanceSquared(predictedExternalPosition, radarTrackingModule.TargetPosition) < ExternalToRadarToleranceSquared)
+                    {
+                        FlightState = MissileFlightState.Terminal;
+                        return;
+                    }
+                    else
+                    {
+                        FlightState = MissileFlightState.Cruising;
+                    }
+                }
+            }
+
+            private void UpdateMissileVelocityPosition(long currentPbTime)
+            {
+                Vector3D currentPosition = Vector3D.Zero;
+
+                foreach (var gyro in gyros)
+                {
+                    if (gyro.IsFunctional)
+                    {
+                        currentPosition = gyro.GetPosition();
+                    }
+                }
+
+                long timeDifference = currentPbTime - lastPositionVelocityUpdateTime;
+
+                Vector3D velocity = (currentPosition - Position) / timeDifference * 60;
+
+                Position = currentPosition;
+                Velocity = velocity;
+                lastPositionVelocityUpdateTime = currentPbTime;
+            }
+            
         }
     }
 }
