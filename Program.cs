@@ -214,7 +214,7 @@ namespace IngameScript
         {
             HandleUserArguments(argument);
 
-            if ((updateSource | UpdateType.Update1) == UpdateType.Update1)
+            if ((updateSource & UpdateType.Update1) == UpdateType.Update1)
             {
                 dlBus.ProcessListeners(Runtime.LifetimeTicks);
                 missileManager.ManageMissiles(Runtime.LifetimeTicks);
@@ -224,17 +224,20 @@ namespace IngameScript
                 scheduler.Main();
             }
 
-            if ((updateSource | UpdateType.Update10) == UpdateType.Update10) {
-
+            if ((updateSource & UpdateType.Update10) == UpdateType.Update10) {
+                Echo("Update10");
             }
 
-            if ((updateSource | UpdateType.Update100) == UpdateType.Update100)
+            if ((updateSource & UpdateType.Update100) == UpdateType.Update100)
             {
+                Echo("Update100");
+
                 if (mainCockpit != null && mainCockpit.IsFunctional)
                 {
                     Vector3D planetPosition;
-                    if (mainCockpit.TryGetPlanetPosition(out planetPosition)) {
-                        missileManager.UpdatePlanetValuses(planetPosition, mainCockpit.GetNaturalGravity().Length());
+                    if (mainCockpit.TryGetPlanetPosition(out planetPosition))
+                    {
+                        missileManager.UpdatePlanetValues(planetPosition, mainCockpit.GetNaturalGravity().Length());
                     }
                 }
             }

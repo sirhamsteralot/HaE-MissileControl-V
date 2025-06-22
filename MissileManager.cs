@@ -26,6 +26,9 @@ namespace IngameScript
         {
             public List<Missile> launchedMissiles = new List<Missile>();
 
+            private Vector3D planetCenterPos;
+            private double planetGravity;
+
             public IEnumerator<bool> LaunchMissile(
                 IMyTerminalBlock referenceBlock,
                 List<IMyFlightMovementBlock> movementBlocks,
@@ -117,6 +120,11 @@ namespace IngameScript
                 yield return true;
                 missile.Initialize();
 
+                if (planetGravity > 0)
+                {
+                    missile.UpdatePlanetValues(planetCenterPos, planetGravity);
+                }
+
                 if (target != null)
                     missile.UpdateTargetedEntity(target);
 
@@ -149,12 +157,10 @@ namespace IngameScript
                 }
             }
 
-            public void UpdatePlanetValuses(Vector3D planetCenter, double gravity)
+            public void UpdatePlanetValues(Vector3D planetCenter, double gravity)
             {
-                foreach (var missile in launchedMissiles)
-                {
-                    missile.UpdatePlanetValues(planetCenter, gravity);
-                }
+                planetCenterPos = planetCenter;
+                planetGravity = gravity;
             }
         }
     }

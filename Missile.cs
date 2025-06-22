@@ -145,20 +145,20 @@ namespace IngameScript
 
             private void FlightLaunching(long currentPbTime)
             {
-                if (lifeTimeCounter < 60 * 3)
+                if (lifeTimeCounter < 60 * 1)
                 {
                     AimInDirection(Forward);
                     ThrustUtils.SetThrustBasedDot(thrusters, Forward);
                 }
                 else if (lifeTimeCounter < 60 * 5 && planetGravity != 0)
                 {
-                    long localCounter = lifeTimeCounter - 60 * 3;
+                    long localCounter = lifeTimeCounter - 60 * 1;
 
-                    double ratio = (double)localCounter / 20.0;
+                    double ratio = (double)localCounter / (60.0 * 4);
 
                     Vector3D planetDirection = Vector3D.Normalize(Position - planetCenterPos);
 
-                    Vector3D aimVector = Vector3D.Normalize(((1 - ratio) * Forward) + (ratio * planetDirection));
+                    Vector3D aimVector = Vector3D.Normalize(Forward + (ratio * planetDirection));
 
                     AimInDirection(aimVector);
                 }
@@ -347,7 +347,7 @@ namespace IngameScript
 
             private Vector3D GetForward()
             {
-                if (flightMovementBlock != null && flightMovementBlock.IsFunctional)
+                if (flightMovementBlock != null && !flightMovementBlock.Closed)
                 {
                     return flightMovementBlock.WorldMatrix.Forward;
                 }
@@ -420,7 +420,7 @@ namespace IngameScript
             {
                 double yaw, pitch;
 
-                if (flightMovementBlock != null && flightMovementBlock.IsFunctional)
+                if (flightMovementBlock != null && !flightMovementBlock.Closed)
                 {
                     GyroUtils.DirectionToPitchYaw(
                         flightMovementBlock.WorldMatrix.Forward,
