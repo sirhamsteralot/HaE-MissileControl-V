@@ -118,7 +118,7 @@ namespace IngameScript
                     default:
                         throw new Exception("missile flight state unknown or other; this should never be reached");
                 }
-                
+
                 lifeTimeCounter++;
             }
 
@@ -143,7 +143,8 @@ namespace IngameScript
 
             private void FlightTerminal(long currentPbTime)
             {
-                
+                Vector3D distanceFromTarget = radarTrackingModule.TargetPosition - Position;
+                UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
             }
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
