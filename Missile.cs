@@ -26,7 +26,6 @@ namespace IngameScript
         {
             private const double ExternalToRadarToleranceSquared = 2000 * 2000;
             private double NavP = 4.0; // Navigation constant (tune as needed)
-            private double dampingFactor = 0.1; // Optional damping
 
             public enum MissileHealth
             {
@@ -186,36 +185,48 @@ namespace IngameScript
                 Vector3D targetVel = radarTrackingModule.TargetVelocity;
 
                 Vector3D rangeVec = targetPos - Position;
-                double rangeSq = rangeVec.LengthSquared();
+                double range = rangeVec.Length();
+                double rangeSq = range * range;
 
-                // Ensure radar updates are timely
                 UpdateRadarRefreshRate(rangeSq);
 
-                // Relative velocity (target - missile)
                 Vector3D relativeVel = targetVel - Velocity;
-
-                // Closing speed (positive scalar)
                 double closingSpeed = -Vector3D.Dot(relativeVel, Vector3D.Normalize(rangeVec));
+
+                // Clamp closingSpeed to avoid divide-by-zero or inversion
+                closingSpeed = Math.Max(1.0, closingSpeed);
+
+                // --- Auto-tune NavP and damping ---
+                // Normalized range factor (0 close, 1 far)
+                double maxRange = 1000.0; // meters, tune as needed
+                double rangeFactor = MathHelperD.Clamp(range / maxRange, 0.0, 1.0);
+
+                // NavP increases with distance, max ~6, min ~2
+                double navP = 2.0 + 4.0 * rangeFactor;
+
+                // Damping increases as we get closer
+                double dampingFactor = 0.05 + 0.15 * (1.0 - rangeFactor); // From 0.05 to 0.2
 
                 // LOS angular rate
                 Vector3D omegaL = Vector3D.Cross(rangeVec, relativeVel) / rangeSq;
 
-                // PN acceleration command
-                Vector3D pnavAccel = NavP * closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(rangeVec));
+                // Proportional Navigation acceleration
+                Vector3D pnavAccel = navP * closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(rangeVec));
 
-                // Optional derivative damping
+                // Apply damping to smooth out changes
                 Vector3D derivative = (pnavAccel - oldAccelTarget) * dampingFactor;
                 oldAccelTarget = pnavAccel;
                 pnavAccel += derivative;
 
-                // Optional terminal bias toward final intercept
-                Vector3D leadBias = 0.1 * rangeVec; // Tune this coefficient
+                // Optional terminal guidance bias
+                Vector3D leadBias = 0.1 * rangeVec; // Helps push toward final LOS
                 Vector3D aimDirection = Vector3D.Normalize(pnavAccel + leadBias);
 
-                // Apply guidance
+                // Apply aim and thrust
                 AimInDirection(aimDirection);
                 ThrustUtils.SetThrustBasedDot(thrusters, aimDirection);
             }
+
 
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
