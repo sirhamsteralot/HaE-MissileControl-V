@@ -59,7 +59,7 @@ namespace IngameScript
             public Vector3D Position { get; private set; }
             public Vector3D Velocity { get; private set; }
 
-            private DLBus.DLBusDetectedEntity ExternalTarget { get; set; }
+            public DLBus.DLBusDetectedEntity ExternalTarget { get; private set; }
 
 
             private RadarTrackingModule radarTrackingModule;

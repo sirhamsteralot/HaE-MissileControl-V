@@ -24,7 +24,7 @@ namespace IngameScript
     {
         public class MissileManager
         {
-            public List<Missile> missiles = new List<Missile>();
+            public List<Missile> launchedMissiles = new List<Missile>();
 
             public IEnumerator<bool> LaunchMissile(
                 IMyTerminalBlock referenceBlock,
@@ -35,7 +35,8 @@ namespace IngameScript
                 List<IMyThrust> thrusters,
                 List<IMyWarhead> warheads,
                 List<IMyGasTank> gasTanks,
-                List<IMyBatteryBlock> batteries)
+                List<IMyBatteryBlock> batteries,
+                DLBus.DLBusDetectedEntity target)
             {
                 foreach (var mergeBlock in mergeBlocks)
                 {
@@ -113,7 +114,35 @@ namespace IngameScript
                     }
                 }
 
-                missiles.Add(missile);
+                yield return true;
+                missile.Initialize();
+
+                if (target != null)
+                    missile.UpdateTargetedEntity(target);
+
+                launchedMissiles.Add(missile);
+            }
+
+            public void ManageMissiles(long currentPbTime)
+            {
+                foreach (var missile in launchedMissiles)
+                {
+                    missile.Flight(currentPbTime);
+                }
+            }
+
+            public void UpdateDetectionsDeferred(List<DLBus.DLBusDetectedEntity> updatedEntities)
+            {
+                foreach (var missile in launchedMissiles)
+                {
+                    foreach (var updatedEntity in updatedEntities)
+                    {
+                        if (missile.ExternalTarget.EntityId == updatedEntity.EntityId)
+                        {
+                            missile.UpdateTargetedEntity(updatedEntity);
+                        }
+                    }
+                }
             }
         }
     }

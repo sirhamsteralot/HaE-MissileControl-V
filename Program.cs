@@ -28,6 +28,8 @@ namespace IngameScript
         Scheduler scheduler = new Scheduler();
         MyIni Ini = new MyIni();
 
+        MissileManager missileManager;
+
         string scriptExcludeTag = "#ExMissileControlV#";
         string scriptIncludeTag = "#MissileControlV#";
         int cockpitLCD = 0;
@@ -42,6 +44,8 @@ namespace IngameScript
         List<IMyGasTank> gasTanks = new List<IMyGasTank>();
         List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
         IMyCockpit mainCockpit;
+
+        List<DLBus.DLBusDetectedEntity> newDetectedEntitiesList = new List<DLBus.DLBusDetectedEntity>();
 
         public Program()
         {
@@ -202,14 +206,33 @@ namespace IngameScript
 
             if (externalTrackingStore == null)
                 externalTrackingStore = new DLBus.ObjectTrackingStore();
+
+            missileManager = new MissileManager();
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
+            if ((updateSource | UpdateType.Update1) == UpdateType.Update1)
+            {
+                dlBus.ProcessListeners(Runtime.LifetimeTicks);
+                missileManager.ManageMissiles(Runtime.LifetimeTicks);
+                missileManager.UpdateDetectionsDeferred(newDetectedEntitiesList);
+                newDetectedEntitiesList.Clear();
+            }
+
+            if ((updateSource | UpdateType.Update10) == UpdateType.Update10) {
+
+            }
+
+            if ((updateSource | UpdateType.Update100) == UpdateType.Update100)
+            {
+                
+            }
         }
-        
+
         private void OnNetworkEntityDetected(DLBus.DLBusDetectedEntity detectedEntity)
         {
+            newDetectedEntitiesList.Add(detectedEntity);
             externalTrackingStore.AddDetection(detectedEntity, Runtime.LifetimeTicks);
         }
     }
