@@ -25,8 +25,8 @@ namespace IngameScript
         public class Missile
         {
             private const double ExternalToRadarToleranceSquared = 2000 * 2000;
-            private const double NavP = 1;
-            private const double NavD = 0;
+            private const double NavP = 10;
+            private const double NavD = 1;
             private const double NavI = 0;
 
             public enum MissileHealth
@@ -108,7 +108,7 @@ namespace IngameScript
             public void Flight(long currentPbTime)
             {
                 if (radarTrackingModule != null)
-                    UpdateTrackingInformation(currentPbTime);
+                    radarTrackingModule.UpdateTracking(currentPbTime);
 
                 UpdateMissileVelocityPosition(currentPbTime);
 
@@ -188,9 +188,9 @@ namespace IngameScript
 
                 Vector3D closingVelocity = Velocity - radarTrackingModule.TargetVelocity;
 
-                Vector3D pnavDirection = CalculateAccel(distanceFromTarget, closingVelocity);
+                Vector3D pnavDirection = CalculateLateralAccel(distanceFromTarget, closingVelocity);
 
-                Vector3D aimDir = pnavDirection + Forward;
+                Vector3D aimDir = Vector3D.Normalize(pnavDirection + distanceFromTarget);
 
                 AimInDirection(aimDir);
                 ThrustUtils.SetThrustBasedDot(thrusters, aimDir);
@@ -305,25 +305,6 @@ namespace IngameScript
                 Health = MissileHealth.Healthy;
             }
 
-            private void UpdateTrackingInformation(long currentPbTime)
-            {
-                radarTrackingModule.UpdateTracking(currentPbTime);
-
-                if (radarTrackingModule.IsTracking)
-                {
-                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
-                    if (FlightState == MissileFlightState.Cruising && Vector3D.DistanceSquared(predictedExternalPosition, radarTrackingModule.TargetPosition) < ExternalToRadarToleranceSquared)
-                    {
-                        FlightState = MissileFlightState.Terminal;
-                        return;
-                    }
-                    else
-                    {
-                        FlightState = MissileFlightState.Cruising;
-                    }
-                }
-            }
-
             private void UpdateMissileVelocityPosition(long currentPbTime)
             {
                 Vector3D currentPosition = Vector3D.Zero;
@@ -400,7 +381,7 @@ namespace IngameScript
                 return majorityDirection;
             }
 
-            private Vector3D CalculateAccel(Vector3D rangeVec, Vector3D closingVelocity)
+            private Vector3D CalculateLateralAccel(Vector3D rangeVec, Vector3D closingVelocity)
             {
                 // Calculate rotation vec
                 Vector3D RxV = Vector3D.Cross(rangeVec, closingVelocity);
@@ -413,7 +394,7 @@ namespace IngameScript
                 Vector3D deltaError = accelerationNormal - oldAccelTarget;
 
                 oldAccelTarget = accelerationNormal;
-                return NavP * accelerationNormal + NavD * deltaError;
+                return (NavP * accelerationNormal + NavD * deltaError);
             }
 
             private void AimInDirection(Vector3D aimdirection)
@@ -428,7 +409,7 @@ namespace IngameScript
                         aimdirection, out yaw, out pitch
                     );
 
-                    GyroUtils.ApplyGyroOverride(gyros, flightMovementBlock.WorldMatrix, pitch , yaw , 0);
+                    GyroUtils.ApplyGyroOverride(gyros, flightMovementBlock.WorldMatrix, pitch * 1 , yaw * 1 , 0);
                 }
                 else if (thrustDirectionReference != null && thrustDirectionReference.IsFunctional)
                 {
@@ -437,7 +418,7 @@ namespace IngameScript
                         aimdirection, out yaw, out pitch
                     );
                     
-                    GyroUtils.ApplyGyroOverride(gyros, thrustDirectionReference.WorldMatrix, pitch , yaw , 0);
+                    GyroUtils.ApplyGyroOverride(gyros, thrustDirectionReference.WorldMatrix, pitch * 1 , yaw * 1, 0);
                 }
             }
         }

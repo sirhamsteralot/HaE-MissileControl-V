@@ -149,6 +149,9 @@ namespace IngameScript
 
                     foreach (var updatedEntity in updatedEntities)
                     {
+                        if (missile.ExternalTarget == null)
+                            continue;
+                        
                         if (missile.ExternalTarget.EntityId == updatedEntity.EntityId)
                         {
                             missile.UpdateTargetedEntity(updatedEntity);
