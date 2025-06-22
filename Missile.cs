@@ -135,9 +135,7 @@ namespace IngameScript
             private void FlightCruising(long currentPbTime)
             {
                 Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
-
                 Vector3D distanceFromTarget = predictedExternalPosition - Position;
-
                 UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
             }
 
@@ -149,7 +147,11 @@ namespace IngameScript
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
             {
-                if (distanceToTargetSquared > 1500 * 1500)
+                if (distanceToTargetSquared > 3000 * 3000)
+                {
+                    radarTrackingModule.RefreshRate = 50;
+                }
+                else if (distanceToTargetSquared > 1500 * 1500)
                 {
                     radarTrackingModule.RefreshRate = 10;
                 }
@@ -251,8 +253,7 @@ namespace IngameScript
 
             private void UpdateTrackingInformation(long currentPbTime)
             {
-                if (lifeTimeCounter % radarTrackingModule.RefreshRate == 0)
-                    radarTrackingModule.UpdateTracking(currentPbTime);
+                radarTrackingModule.UpdateTracking(currentPbTime);
 
                 if (radarTrackingModule.IsTracking)
                 {
