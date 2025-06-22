@@ -18,6 +18,8 @@ Features it will need:
 - Bulldog/Final Targeting done by PNav using Internal Guidance if aquisition is possible
 - Target Data Ingress through DataLink network
 - Selecting Targets from DataLink Network
+- RefExploit Powered (sorry malware)
+
 UI:
 - Displaying selected Target Information
 - Updateing DataLink Network on currently Targeted Entity
@@ -26,3 +28,5 @@ UI:
     - Lock Status
     - Distance to Target
 
+
+Configuration:

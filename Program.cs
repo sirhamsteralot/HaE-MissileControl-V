@@ -22,51 +22,180 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        // This file contains your actual script.
-        //
-        // You can either keep all your code here, or you can create separate
-        // code files to make your program easier to navigate while coding.
-        //
-        // Go to:
-        // https://github.com/malware-dev/MDK-SE/wiki/Quick-Introduction-to-Space-Engineers-Ingame-Scripts
-        //
-        // to learn more about ingame scripts.
+        DLBus dlBus;
+        DLBus.ObjectTrackingStore externalTrackingStore;
+
+        Scheduler scheduler = new Scheduler();
+        MyIni Ini = new MyIni();
+
+        string scriptExcludeTag = "#ExMissileControlV#";
+        string scriptIncludeTag = "#MissileControlV#";
+        int cockpitLCD = 1;
+
+        List<IMyTextPanel> textPanels = new List<IMyTextPanel>();
+        List<IMyFlightMovementBlock> movementBlocks = new List<IMyFlightMovementBlock>();
+        List<IMyOffensiveCombatBlock> combatBlocks = new List<IMyOffensiveCombatBlock>();
+        List<IMyShipMergeBlock> mergeBlocks = new List<IMyShipMergeBlock>();
+        List<IMyGyro> gyros = new List<IMyGyro>();
+        List<IMyThrust> thrusters = new List<IMyThrust>();
+        List<IMyWarhead> warheads = new List<IMyWarhead>();
+        List<IMyGasTank> gasTanks = new List<IMyGasTank>();
+        List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
+        IMyCockpit mainCockpit;
 
         public Program()
         {
-            // The constructor, called only once every session and
-            // always before any other method is called. Use it to
-            // initialize your script. 
-            //     
-            // The constructor is optional and can be removed if not
-            // needed.
-            // 
-            // It's recommended to set Runtime.UpdateFrequency 
-            // here, which will allow your script to run itself without a 
-            // timer block.
+            Runtime.UpdateFrequency = UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
+
+            if (string.IsNullOrWhiteSpace(Me.CustomData))
+                ExportConfig();
+
+            ImportConfig();
+
+            FetchBlocks();
+
+            Initialize();
         }
 
-        public void Save()
+        #region INI
+        private void ParseINI()
         {
-            // Called when the program needs to save its state. Use
-            // this method to save your state to the Storage field
-            // or some other means. 
-            // 
-            // This method is optional and can be removed if not
-            // needed.
+            if (!string.IsNullOrWhiteSpace(Me.CustomData))
+            {
+                MyIniParseResult parseResult;
+                if (!Ini.TryParse(Me.CustomData, out parseResult))
+                {
+                    Echo($"CustomData error:\nLine {parseResult}");
+                }
+            }
+        }
+
+        private void ExportConfig()
+        {
+            Ini.AddSection(INISettingsHeader);
+            Ini.Set(INISettingsHeader, "ScriptExcludeTag", "#ExMissileCtrl#");
+            Ini.Set(INISettingsHeader, "TextPanelIncludeTag", "#MissileCtrl#");
+            Ini.Set(INISettingsHeader, "CockpitLCDSelection", 2);
+
+            Me.CustomData = Ini.ToString();
+        }
+
+        private void ImportConfig()
+        {
+            ParseINI();
+
+            scriptExcludeTag = Ini.Get(INISettingsHeader, "ScriptExcludeTag").ToString();
+            cockpitLCD = Ini.Get(INISettingsHeader, "CockpitLCDSelection").ToInt32();
+            scriptIncludeTag = Ini.Get(INISettingsHeader, "TextPanelIncludeTag").ToString();
+        }
+        #endregion
+
+        private void FetchBlocks()
+        {
+            GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, x =>
+            {
+                if (x.CustomData.Contains(scriptExcludeTag))
+                    return false;
+
+                if (x.CustomName.Contains(scriptExcludeTag))
+                    return false;
+
+                IMyTextPanel textPanel = x as IMyTextPanel;
+                if (textPanel != null)
+                {
+                    if (textPanel.CustomName.Contains(scriptIncludeTag) ||
+                        textPanel.CustomData.Contains(scriptIncludeTag))
+                    {
+                        textPanels.Add(textPanel);
+                    }
+
+                    return false;
+                }
+
+                var movementBlock = x as IMyFlightMovementBlock;
+                if (movementBlock != null)
+                {
+                    movementBlocks.Add(movementBlock);
+                    return false;
+                }
+
+                var combatBlock = x as IMyOffensiveCombatBlock;
+                if (combatBlock != null)
+                {
+                    combatBlocks.Add(combatBlock);
+                    return false;
+                }
+
+                var mergeBlock = x as IMyShipMergeBlock;
+                if (mergeBlock != null)
+                {
+                    if (mergeBlock.CustomName.Contains(scriptIncludeTag) ||
+                        mergeBlock.CustomData.Contains(scriptIncludeTag))
+                    {
+                        mergeBlocks.Add(mergeBlock);
+                    }
+                    return false;    
+
+                }
+
+                var gyro = x as IMyGyro;
+                if (gyro != null)
+                {
+                    gyros.Add(gyro);
+                    return false;
+                }
+
+                var thruster = x as IMyThrust;
+                if (thruster != null)
+                {
+                    thrusters.Add(thruster);
+                    return false;
+                }
+
+                var cockpit = x as IMyCockpit;
+                if (cockpit != null)
+                {
+                    if (mainCockpit == null || cockpit.IsMainCockpit)
+                    {
+                        mainCockpit = cockpit;
+                        return false;
+                    }
+                }
+
+                var gasTank = x as IMyGasTank;
+                if (gasTank != null)
+                {
+                    gasTanks.Add(gasTank);
+                    return false;
+                }
+
+                var battery = x as IMyBatteryBlock;
+                if (battery != null)
+                {
+                    batteries.Add(battery);
+                    return false;
+                }
+
+                return false;
+            });
+        }
+
+        private void Initialize()
+        {
+            dlBus = new DLBus(IGC);
+            dlBus.OnEntityDetectedNetwork += OnNetworkEntityDetected;
+
+            if (externalTrackingStore == null)
+                externalTrackingStore = new DLBus.ObjectTrackingStore();
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
-            // The main entry point of the script, invoked every time
-            // one of the programmable block's Run actions are invoked,
-            // or the script updates itself. The updateSource argument
-            // describes where the update came from. Be aware that the
-            // updateSource is a  bitfield  and might contain more than 
-            // one update type.
-            // 
-            // The method itself is required, but the arguments above
-            // can be removed if not needed.
+        }
+        
+        private void OnNetworkEntityDetected(DLBus.DLBusDetectedEntity detectedEntity)
+        {
+            externalTrackingStore.AddDetection(detectedEntity, Runtime.LifetimeTicks);
         }
     }
 }
