@@ -220,6 +220,8 @@ namespace IngameScript
                 missileManager.ManageMissiles(Runtime.LifetimeTicks);
                 missileManager.UpdateDetectionsDeferred(newDetectedEntitiesList);
                 newDetectedEntitiesList.Clear();
+
+                scheduler.Main();
             }
 
             if ((updateSource | UpdateType.Update10) == UpdateType.Update10) {

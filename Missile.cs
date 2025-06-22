@@ -89,7 +89,7 @@ namespace IngameScript
                 lifeTimeCounter = 0;
 
                 UpdateMissileHealth();
-                GetMajorityThrustDirectionLocal(thrusters);
+                majorityThrustDirectionLocal = GetMajorityThrustDirectionLocal(thrusters);
 
                 if (Health == MissileHealth.Healthy || Health == MissileHealth.Degraded)
                 {
@@ -107,7 +107,9 @@ namespace IngameScript
 
             public void Flight(long currentPbTime)
             {
-                UpdateTrackingInformation(currentPbTime);
+                if (radarTrackingModule != null)
+                    UpdateTrackingInformation(currentPbTime);
+
                 UpdateMissileVelocityPosition(currentPbTime);
 
                 if (lifeTimeCounter % 60 == 0)
@@ -154,9 +156,9 @@ namespace IngameScript
 
                     double ratio = (double)localCounter / 20.0;
 
-                    Vector3D planetDirection = planetCenterPos - Position;
+                    Vector3D planetDirection = Vector3D.Normalize(Position - planetCenterPos);
 
-                    Vector3D aimVector = ((1 - ratio) * Forward) + (ratio * -planetDirection);
+                    Vector3D aimVector = Vector3D.Normalize(((1 - ratio) * Forward) + (ratio * planetDirection));
 
                     AimInDirection(aimVector);
                 }
@@ -168,9 +170,12 @@ namespace IngameScript
 
             private void FlightCruising(long currentPbTime)
             {
-                Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
-                Vector3D distanceFromTarget = predictedExternalPosition - Position;
-                UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
+                if (ExternalTarget != null)
+                {
+                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
+                    Vector3D distanceFromTarget = predictedExternalPosition - Position;
+                    UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
+                }
 
                 // TODO
                 FlightState = MissileFlightState.Terminal;
@@ -193,22 +198,25 @@ namespace IngameScript
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
             {
+                if (radarTrackingModule == null)
+                    return;
+
                 if (distanceToTargetSquared > 3000 * 3000)
-                {
-                    radarTrackingModule.RefreshRate = 50;
-                }
-                else if (distanceToTargetSquared > 1500 * 1500)
-                {
-                    radarTrackingModule.RefreshRate = 10;
-                }
-                else if (distanceToTargetSquared > 1000 * 1000)
-                {
-                    radarTrackingModule.RefreshRate = 5;
-                }
-                else
-                {
-                    radarTrackingModule.RefreshRate = 1;
-                }
+                    {
+                        radarTrackingModule.RefreshRate = 50;
+                    }
+                    else if (distanceToTargetSquared > 1500 * 1500)
+                    {
+                        radarTrackingModule.RefreshRate = 10;
+                    }
+                    else if (distanceToTargetSquared > 1000 * 1000)
+                    {
+                        radarTrackingModule.RefreshRate = 5;
+                    }
+                    else
+                    {
+                        radarTrackingModule.RefreshRate = 1;
+                    }
             }
 
             private void UpdateMissileHealth()
@@ -343,9 +351,13 @@ namespace IngameScript
                 {
                     return flightMovementBlock.WorldMatrix.Forward;
                 }
-                else
+                else if (thrustDirectionReference != null)
                 {
                     return VectorUtils.TransformDirLocalToWorld(thrustDirectionReference.WorldMatrix, majorityThrustDirectionLocal);
+                }
+                else
+                {
+                    return Vector3D.Zero;
                 }
             }
 
@@ -408,7 +420,7 @@ namespace IngameScript
             {
                 double yaw, pitch;
 
-                if (flightMovementBlock != null && !flightMovementBlock.IsFunctional)
+                if (flightMovementBlock != null && flightMovementBlock.IsFunctional)
                 {
                     GyroUtils.DirectionToPitchYaw(
                         flightMovementBlock.WorldMatrix.Forward,
@@ -418,7 +430,7 @@ namespace IngameScript
 
                     GyroUtils.ApplyGyroOverride(gyros, flightMovementBlock.WorldMatrix, pitch , yaw , 0);
                 }
-                else if (thrustDirectionReference != null && !thrustDirectionReference.IsFunctional)
+                else if (thrustDirectionReference != null && thrustDirectionReference.IsFunctional)
                 {
                     GyroUtils.DirectionToPitchYaw(thrustDirectionReference.WorldMatrix.Forward,
                         thrustDirectionReference.WorldMatrix.Left, thrustDirectionReference.WorldMatrix.Up,
