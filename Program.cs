@@ -47,6 +47,10 @@ namespace IngameScript
 
         List<DLBus.DLBusDetectedEntity> newDetectedEntitiesList = new List<DLBus.DLBusDetectedEntity>();
 
+        int update100Counter = 0;
+        double averageRuntime = 0;
+
+
         public Program()
         {
             Runtime.UpdateFrequency = UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
@@ -212,6 +216,8 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            averageRuntime = averageRuntime * (1 - runtimeSignificance) + Runtime.LastRunTimeMs * runtimeSignificance;
+
             HandleUserArguments(argument);
 
             if ((updateSource & UpdateType.Update1) == UpdateType.Update1)
@@ -225,12 +231,13 @@ namespace IngameScript
             }
 
             if ((updateSource & UpdateType.Update10) == UpdateType.Update10) {
-                Echo("Update10");
             }
 
             if ((updateSource & UpdateType.Update100) == UpdateType.Update100)
             {
-                Echo("Update100");
+                Echo($"IAI MissileControl V {versionString}");
+                Echo(runningIndicator[update100Counter % runningIndicator.Length]);
+                Echo($"runtime average: {averageRuntime:N4}");
 
                 if (mainCockpit != null && mainCockpit.IsFunctional)
                 {
@@ -240,6 +247,8 @@ namespace IngameScript
                         missileManager.UpdatePlanetValues(planetPosition, mainCockpit.GetNaturalGravity().Length());
                     }
                 }
+
+                update100Counter++;
             }
         }
 
