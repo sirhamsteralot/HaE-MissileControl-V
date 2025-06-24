@@ -96,7 +96,7 @@ namespace IngameScript
                         thrust.Enabled = true;
 
                     double thrustpercentage = Vector3D.Dot(thrust.WorldMatrix.Backward, direction);
-                    if (thrustpercentage < 0.2)
+                    if (thrustpercentage < 0.5)
                     {
                         thrustpercentage = 0;
                     }
