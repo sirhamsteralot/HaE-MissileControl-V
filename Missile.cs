@@ -248,172 +248,154 @@ namespace IngameScript
                 AimInDirection(Vector3D.Normalize(accelCommand), currentPbTime); // Changed from requiredAccelDir
             }
 
-        private Vector3D ComputeGuidanceAccel(Vector3D targetPos, Vector3D targetVel, double deltaTime)
-        {
-            // 1) Geometry & relative state
-            var rangeVec      = targetPos - Position;
-            var range         = rangeVec.Length();
-            var LOS           = rangeVec / range; // normalized
-            var forwardNorm   = Velocity.LengthSquared() > 1e-6 
-                                ? Vector3D.Normalize(Velocity) 
-                                : LOS;
-            var relVel        = targetVel - Velocity;
-            var speed         = Math.Max(1.0, Velocity.Length());
-
-            // 2) Target acceleration estimation (filtered)
-            var targetAccel = EstimateTargetAccel(targetVel, deltaTime);
-
-            // 3) Time-to-impact and predicted LOS
-            var timeToImpact = range / speed;
-            var predLOS      = PredictLOS(targetPos, targetVel, targetAccel, timeToImpact);
-
-            // 4) Aspect‐based lead weight
-            var leadWeight   = ComputeLeadWeight(LOS, targetVel);
-
-            // 5) Choose guidance law
-            Vector3D rawAccel;
-            if (range > interceptRadius)
-                rawAccel = ComputePNGuidance(range, LOS, relVel, targetPos, targetVel, targetAccel, leadWeight);
-            else
-                rawAccel = ComputeTerminalHoming(range, LOS, predLOS, relVel, leadWeight);
-
-            // 6) Closing‐velocity tweak
-            rawAccel = ApplyClosingVelocityCancel(rawAccel, rangeVec, relVel, ref rawAccel);
-
-            // 7) Damping & jerk‐limit
-            var dampedAccel = Vector3D.Lerp(prevAccel, rawAccel, dampingFactor);
-            var jerkLimited = LimitJerk(dampedAccel, deltaTime);
-
-            // 8) Boresight & G‐limit
-            var boresighted = ApplyBoresightClamp(jerkLimited, forwardNorm, predLOS, range, ref rawAccel);
-            return ApplyGLimit(boresighted);
-        }
-
-        #region — Helpers —
-
-        private Vector3D EstimateTargetAccel(Vector3D targetVel, double dt)
-        {
-            var raw = (targetVel - prevTargetVel) / dt;
-            var filt = Vector3D.Lerp(raw, prevTargetAccel, accelFilterAlpha);
-            prevTargetVel   = targetVel;
-            prevTargetAccel = filt;
-            return filt;
-        }
-
-        private Vector3D PredictLOS(Vector3D pos, Vector3D vel, Vector3D accel, double t)
-        {
-            var predPos = pos + vel * t + 0.5 * accel * t * t;
-            return Vector3D.Normalize(predPos - Position);
-        }
-
-        private double ComputeLeadWeight(Vector3D LOS, Vector3D targetVel)
-        {
-            var tgtDir = targetVel.LengthSquared() > 1e-6 
-                        ? Vector3D.Normalize(targetVel) 
-                        : LOS;
-            var cosA   = MathHelper.Clamp(Vector3D.Dot(LOS, tgtDir), -1, 1);
-            // weight in [0.9,1.0] to avoid zero‐lead at high aspect
-            return MathHelper.Clamp(cosA, 0.9, 1.0);
-        }
-
-        private Vector3D ComputePNGuidance(
-            double range, Vector3D LOS, Vector3D relVel,
-            Vector3D tgtPos, Vector3D tgtVel, Vector3D tgtAccel, double leadWeight)
-        {
-            // Predict target velocity & cap
-            var lookahead = Math.Min(maxPredictTime, range / Math.Max(Velocity.Length(), 1.0))
-                            + seekerLatency;
-            var capped = Math.Min(lookahead, 2.0);
-            var predVel = tgtVel + tgtAccel * capped;
-            if (predVel.Length() > 104) 
-                predVel = Vector3D.Normalize(predVel) * 104;
-
-            // Future LOS & closing speed
-            var futureLOS     = Vector3D.Normalize((tgtPos + predVel * lookahead) - Position);
-            var closingSpeed  = -Vector3D.Dot(relVel, futureLOS);
-            const double CLOSING_THRESHOLD = 1.0;
-
-            if (closingSpeed < CLOSING_THRESHOLD)
-                return futureLOS * maxForwardAccelCapability;
-
-            // Proportional navigation
-            var navP   = baseNavP * MathHelper.Clamp(closingSpeed / nominalSpeed, 0.5, 2.0);
-            var omega  = Vector3D.Cross(futureLOS, relVel) / (range * range);
-            var desA   = navP * closingSpeed * Vector3D.Cross(omega, futureLOS);
-            var latA   = desA - Vector3D.Dot(desA, futureLOS) * futureLOS;
-
-            // Blend LOS & lead, then bias
-            var w       = MathHelper.Clamp(1.0 / (range + 0.1), nHeadingBiasMin, nHeadingBiasMax);
-            var leadDir = Vector3D.Normalize(latA);
-            var blend   = Vector3D.Normalize(Vector3D.Lerp(futureLOS, leadDir, leadWeight));
-            var bias    = Vector3D.Normalize(Vector3D.Lerp(blend, futureLOS, w));
-
-            return bias * maxForwardAccelCapability;
-        }
-
-        private Vector3D ComputeTerminalHoming(
-            double range, Vector3D LOS, Vector3D predLOS, Vector3D relVel, double leadWeight)
-        {
-            var w        = MathHelper.Clamp(1.0 / (range + 0.1), nHeadingBiasMin, nHeadingBiasMax);
-            var baseDir  = Vector3D.Normalize(Vector3D.Lerp(LOS, predLOS, w));
-
-            // lateral velocity cancellation
-            var latVel   = relVel - Vector3D.Dot(relVel, LOS) * LOS;
-            var cancel   = latVel.LengthSquared() > 1e-6 
-                        ? Vector3D.Normalize(latVel) 
-                        : Vector3D.Zero;
-            var cancelW  = 0.3 * leadWeight;
-            var blendDir = Vector3D.Normalize(cancel * cancelW + baseDir * (1 - cancelW));
-
-            return blendDir * maxForwardAccelCapability;
-        }
-
-        private Vector3D ApplyClosingVelocityCancel(
-            Vector3D accel, Vector3D rangeVec, Vector3D relVel, ref Vector3D rawAccel)
-        {
-            var closingVel = -Vector3D.Dot(relVel, rangeVec / rangeVec.Length());
-            if (closingVel < -25 && rangeVec.Length() > 100)
+            private Vector3D ComputeGuidanceAccel(
+                Vector3D targetPos,
+                Vector3D targetVel,
+                double deltaTime
+            )
             {
-                var cancelAccel = (relVel * (rangeVec / rangeVec.Length())) * cancelGain;
-                rawAccel += cancelAccel;
+                // 1) Basic geometry
+                Vector3D rangeVec = targetPos - Position;
+                double range = rangeVec.Length();
+                Vector3D LOS = Vector3D.Normalize(rangeVec);
+
+                // Normalize forward for boresight usage
+                Vector3D forwardNorm = Velocity.LengthSquared() > 1e-6f
+                    ? Vector3D.Normalize(Velocity)
+                    : LOS;
+
+                Vector3D relVel = targetVel - Velocity;
+
+                // 2) Estimate & filter target accel
+                Vector3D rawTargetAccel = (targetVel - prevTargetVel) / deltaTime;
+                Vector3D targetAccel = Vector3D.Lerp(rawTargetAccel, prevTargetAccel, accelFilterAlpha);
+                prevTargetAccel = targetAccel;
+                prevTargetVel = targetVel;
+
+                double speed = Math.Max(1f, Velocity.Length());
+                double tti = range / speed;
+
+                Vector3D predTgtPos = targetPos
+                        + targetVel * tti
+                        + 0.5f * targetAccel * tti * tti;
+                Vector3D predLOS = Vector3D.Normalize(predTgtPos - Position);
+
+                // 3) Compute aspect angle factor to avoid overshooting at high aspect
+                Vector3D targetVelNorm = targetVel.LengthSquared() > 1e-6f
+                    ? Vector3D.Normalize(targetVel)
+                    : LOS;
+                double aspectAng = Math.Acos(MathHelper.Clamp(Vector3D.Dot(LOS, targetVelNorm), -1f, 1f));
+                // leadWeight goes from 0 (pure LOS at 90°) to 1 (max lead when aspect=0)
+                double leadWeight = MathHelper.Clamp(Math.Cos(aspectAng), 0.9f, 1f);
+
+                // 4) Guidance branch selection
+                Vector3D rawAccel;
+                const double closingSpeedThreshold = 1f;
+
+                if (range > interceptRadius)
+                {
+                    // --- PN guidance with closing-speed check ---
+                    double lookahead = Math.Min(maxPredictTime, range / Math.Max(Velocity.Length(), 1f));
+                    lookahead += seekerLatency;
+
+                    double cappedLookahead = Math.Min(lookahead, 2.0);
+                    Vector3D predictedTargetVel = targetVel + targetAccel * cappedLookahead;
+
+                    if (predictedTargetVel.Length() > 104)
+                        predictedTargetVel = Vector3D.Normalize(predictedTargetVel) * 104;
+
+                    Vector3D futureTgtPos = targetPos + predictedTargetVel * lookahead;
+                    Vector3D futureLOS = Vector3D.Normalize(futureTgtPos - Position);
+
+                    double closingSpeed = -Vector3D.Dot(relVel, futureLOS);
+
+                    if (closingSpeed < closingSpeedThreshold)
+                    {
+                        // fallback to pure LOS pursuit
+                        rawAccel = futureLOS * maxForwardAccelCapability;
+                    }
+                    else
+                    {
+                        double dynamicNavP = baseNavP * MathHelper.Clamp(closingSpeed / nominalSpeed, 0.5f, 2f);
+                        Vector3D omega = Vector3D.Cross(futureLOS, relVel) / (range * range);
+                        Vector3D desA = dynamicNavP * closingSpeed * Vector3D.Cross(omega, futureLOS);
+                        Vector3D latA = desA - Vector3D.Dot(desA, futureLOS) * futureLOS;
+
+                        double w = MathHelper.Clamp(1f / (range + 0.1f), nHeadingBiasMin, nHeadingBiasMax);
+                        // incorporate aspect-based leadWeight to reduce over-leading at high aspect
+                        Vector3D leadDir = Vector3D.Normalize(latA);
+                        Vector3D blendDir = Vector3D.Normalize(
+                            Vector3D.Lerp(futureLOS, leadDir, leadWeight)
+                        );
+                        Vector3D biasDir = Vector3D.Normalize(
+                            Vector3D.Lerp(blendDir, futureLOS, w)
+                        );
+
+                        rawAccel = biasDir * maxForwardAccelCapability;
+                    }
+                }
+                else
+                {
+                    // --- Terminal homing ---
+                    double w = MathHelper.Clamp(1f / (range + 0.1f), nHeadingBiasMin, nHeadingBiasMax);
+                    Vector3D baseDir = Vector3D.Normalize(
+                        Vector3D.Lerp(LOS, predLOS, w)
+                    );
+
+                    // lateral cancel
+                    Vector3D latVel = relVel - Vector3D.Dot(relVel, LOS) * LOS;
+                    Vector3D cancel = latVel.LengthSquared() > 1e-6f
+                        ? Vector3D.Normalize(latVel)
+                        : Vector3D.Zero;
+
+                    // blend cancel + baseDir, then apply aspect scaling
+                    double cancelWeight = 0.3f * leadWeight;
+                    double biasWeight = 1f - cancelWeight;
+                    Vector3D blend = Vector3D.Normalize(cancelWeight * cancel + biasWeight * baseDir);
+
+                    rawAccel = blend * maxForwardAccelCapability;
+                }
+
+                double closingVelocity = -Vector3D.Dot(relVel, LOS);
+                Vector3D latRelVel = relVel * LOS;
+                Vector3D cancelAccel = latRelVel * cancelGain;
+                bool hyperAgressive = false;
+
+                if (closingVelocity < -25 && rangeVec.Length() > 100)
+                {
+                    rawAccel += cancelAccel;
+                    hyperAgressive = true;
+                }
+
+                // 5) Damping
+                Vector3D damped = Vector3D.Lerp(prevAccel, rawAccel, dampingFactor);
+
+                // 6) Jerk limiting
+                Vector3D jerk = (damped - prevAccel) / deltaTime;
+                double maxJerk = maxG * 9.81f / deltaTime;
+                Vector3D clampedJerk = jerk;
+                if (jerk.Length() > maxJerk)
+                {
+                    clampedJerk = Vector3D.Normalize(jerk) * maxJerk;
+                }
+                Vector3D finalAccel = prevAccel + clampedJerk * deltaTime;
+                prevAccel = finalAccel;
+
+                // 7) Angular boresight clamp
+                Vector3D blendForward = Vector3D.Normalize(forwardNorm * 0.8f + predLOS * 0.2f);
+                double maxAngleDeg = MathHelper.Lerp(90.0, 30.0, MathHelper.Clamp(range / 300.0, 0.0, 1.0));
+                if (!hyperAgressive)
+                    finalAccel = LimitAngleFromForward(finalAccel, blendForward, maxForwardAccelCapability, maxAngleDeg);
+                else
+                    finalAccel = cancelAccel * (LOS * 0.5 * maxForwardAccelCapability);
+
+                // 8) G-limit
+                double load = finalAccel.Length() / 9.81f;
+                if (load > maxG)
+                    finalAccel *= (maxG / load);
+
+                return finalAccel;
             }
-            return rawAccel;
-        }
-
-        private Vector3D LimitJerk(Vector3D damped, double dt)
-        {
-            var jerk     = (damped - prevAccel) / dt;
-            var maxJ     = maxG * 9.81 / dt;
-            var clamped  = jerk.Length() > maxJ 
-                        ? Vector3D.Normalize(jerk) * maxJ 
-                        : jerk;
-            prevAccel    = prevAccel + clamped * dt;
-            return prevAccel;
-        }
-
-        private Vector3D ApplyBoresightClamp(
-            Vector3D accel, Vector3D forwardNorm, Vector3D predLOS, double range, ref Vector3D rawAccel)
-        {
-            var blendFwd = Vector3D.Normalize(forwardNorm * 0.8 + predLOS * 0.2);
-            var maxAng   = MathHelper.Lerp(90.0, 30.0, MathHelper.Clamp(range / 300.0, 0.0, 1.0));
-
-            // if we’re in hyper-aggressive cancel mode, switch to pure cancel
-            if (rawAccel == /* flagged hyper-aggressive accel */) 
-                return /* cancelAccel logic */;
-
-            return LimitAngleFromForward(accel, blendFwd, maxForwardAccelCapability, maxAng);
-        }
-
-        private Vector3D ApplyGLimit(Vector3D accel)
-        {
-            var gLoad = accel.Length() / 9.81;
-            if (gLoad > maxG)
-                accel *= (maxG / gLoad);
-            return accel;
-        }
-
-        #endregion
-
 
             private Vector3D LimitAngleFromForward(Vector3D accel, Vector3D forwardDir, double accelMagnitude, double maxAngleDeg)
             {
