@@ -24,12 +24,12 @@ namespace IngameScript
     {
         public class ThrustUtils
         {
-            public static double GetForwardThrust(List<IMyThrust>thrusters, IMyTerminalBlock reference)
+            public static double GetForwardThrust(List<IMyThrust>thrusters, Vector3D directionForward)
             {
                 double sum = 0;
                 foreach (var thrust in thrusters)
                 {
-                    if (Vector3D.Dot(thrust.WorldMatrix.Backward, reference.WorldMatrix.Forward) > 0.999)
+                    if (Vector3D.Dot(thrust.WorldMatrix.Backward, directionForward) > 0.999)
                     {
                         sum += thrust.MaxEffectiveThrust;
                     }
@@ -96,6 +96,11 @@ namespace IngameScript
                         thrust.Enabled = true;
 
                     double thrustpercentage = Vector3D.Dot(thrust.WorldMatrix.Backward, direction);
+                    if (thrustpercentage < 0.2)
+                    {
+                        thrustpercentage = 0;
+                    }
+
                     thrust.ThrustOverridePercentage = (float)(thrustpercentage * mulitplier);
                 }
             }

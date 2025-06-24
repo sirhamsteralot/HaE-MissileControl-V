@@ -25,11 +25,21 @@ namespace IngameScript
     {
         public class Missile
         {
-            private double navP = 3.0f;
-            private double maxAccelCapability = 83;
-            private float interceptRadius = 25.0f; // avoid last-moment turns
-            private float headingBiasWeight = 0.1f; // blend weight to bias toward target direction
-            private double dampingFactor = 0.2f; // 0 = no damping, 1 = full damping
+            private const double baseNavP = 6;
+            private const double dampingFactor = 0.2;
+            private const double nominalSpeed = 80;
+            private const double cancelGain = 3;
+            private const double maxForwardAccelCapability = 80;
+            private const double maxPredictTime = 15;
+            private const double seekerLatency = 0.16;
+            private const double interceptRadius = 12.5;
+            private const double accelFilterAlpha = 0.8;
+            private const double DeltaTime = 1.0 / 60.0;
+            private const double nHeadingBiasMin = 0;
+            private const double nHeadingBiasMax = 0.4;
+            private const double maxG = 100.0;
+            private const double MaxAccelAngleDegrees = 35;
+            private readonly double CosMaxAngle = Math.Cos(MaxAccelAngleDegrees * Math.PI / 180f);
 
             private const double ExternalToRadarToleranceSquared = 2000 * 2000;
 
@@ -74,10 +84,12 @@ namespace IngameScript
             private RadarTrackingModule radarTrackingModule;
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
-            private Vector3D previousAccel = Vector3D.Zero;
-
-            private PIDController yawPID = new PIDController(5.0, 0.0, 1);
-            private PIDController pitchPID = new PIDController(5.0, 0.0, 1);
+            
+            private Vector3D prevTargetVel;
+            private Vector3D prevTargetAccel;
+            private Vector3D prevAccel;
+            private PIDController yawPID = new PIDController(18.0, 0.0, 0.3);
+            private PIDController pitchPID = new PIDController(18.0, 0.0, 0.3);
 
             public Missile()
             {
@@ -217,7 +229,11 @@ namespace IngameScript
 
                 UpdateRadarRefreshRate(Vector3D.Distance(targetPos, Position));
 
-                Vector3D accelCommand = ComputeGuidanceAccel(targetPos, targetVel);
+                Vector3D gravitydirection = planetCenterPos - Position;
+                double altitude = gravitydirection.Normalize();
+
+
+                Vector3D accelCommand = ComputeGuidanceAccel(targetPos, targetVel, DeltaTime) - gravitydirection * planetGravity;
 
                 if (Vector3D.IsZero(accelCommand))
                 {
@@ -228,94 +244,202 @@ namespace IngameScript
                     return;
                 }
 
-                Vector3D currentVelocityDir = Vector3D.Normalize(Velocity);
-                Vector3D currentTargetDir = Vector3D.Normalize(targetPos - Position);
-                Vector3D requiredAccelDir = Vector3D.Normalize(accelCommand + currentTargetDir * Math.Min(1, maxAccelCapability - accelCommand.Length()));
-
-                // Calculate angle needed to achieve desired lateral acceleration
-                double angleBetween = Math.Acos(MathHelper.Clamp(Vector3D.Dot(currentVelocityDir, requiredAccelDir), -1.0, 1.0));
-                double maxTurnAngle = Math.Asin(Math.Min(accelCommand.Length() / maxAccelCapability, 1.0));
-
-                // If more turn than required, limit it to necessary
-                double limitedAngle = Math.Min(angleBetween, maxTurnAngle);
-                Vector3D limitedDirection;
-                if (angleBetween < 1e-6) // Avoid division by zero
-                {
-                    limitedDirection = currentVelocityDir;
-                }
-                else
-                {
-                    limitedDirection = Vector3D.Normalize(Vector3D.Lerp(currentVelocityDir, requiredAccelDir, limitedAngle / angleBetween));
-                }
-
-                ThrustUtils.SetThrustBasedDot(thrusters, limitedDirection); // Changed from requiredAccelDir
-                AimInDirection(limitedDirection, currentPbTime); // Changed from requiredAccelDir
+                ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand)); // Changed from requiredAccelDir
+                AimInDirection(Vector3D.Normalize(accelCommand), currentPbTime); // Changed from requiredAccelDir
             }
 
-            private Vector3D ComputeGuidanceAccel(Vector3D targetmissilePos, Vector3D targetVelocity)
+        private Vector3D ComputeGuidanceAccel(Vector3D targetPos, Vector3D targetVel, double deltaTime)
+        {
+            // 1) Geometry & relative state
+            var rangeVec      = targetPos - Position;
+            var range         = rangeVec.Length();
+            var LOS           = rangeVec / range; // normalized
+            var forwardNorm   = Velocity.LengthSquared() > 1e-6 
+                                ? Vector3D.Normalize(Velocity) 
+                                : LOS;
+            var relVel        = targetVel - Velocity;
+            var speed         = Math.Max(1.0, Velocity.Length());
+
+            // 2) Target acceleration estimation (filtered)
+            var targetAccel = EstimateTargetAccel(targetVel, deltaTime);
+
+            // 3) Time-to-impact and predicted LOS
+            var timeToImpact = range / speed;
+            var predLOS      = PredictLOS(targetPos, targetVel, targetAccel, timeToImpact);
+
+            // 4) Aspect‐based lead weight
+            var leadWeight   = ComputeLeadWeight(LOS, targetVel);
+
+            // 5) Choose guidance law
+            Vector3D rawAccel;
+            if (range > interceptRadius)
+                rawAccel = ComputePNGuidance(range, LOS, relVel, targetPos, targetVel, targetAccel, leadWeight);
+            else
+                rawAccel = ComputeTerminalHoming(range, LOS, predLOS, relVel, leadWeight);
+
+            // 6) Closing‐velocity tweak
+            rawAccel = ApplyClosingVelocityCancel(rawAccel, rangeVec, relVel, ref rawAccel);
+
+            // 7) Damping & jerk‐limit
+            var dampedAccel = Vector3D.Lerp(prevAccel, rawAccel, dampingFactor);
+            var jerkLimited = LimitJerk(dampedAccel, deltaTime);
+
+            // 8) Boresight & G‐limit
+            var boresighted = ApplyBoresightClamp(jerkLimited, forwardNorm, predLOS, range, ref rawAccel);
+            return ApplyGLimit(boresighted);
+        }
+
+        #region — Helpers —
+
+        private Vector3D EstimateTargetAccel(Vector3D targetVel, double dt)
+        {
+            var raw = (targetVel - prevTargetVel) / dt;
+            var filt = Vector3D.Lerp(raw, prevTargetAccel, accelFilterAlpha);
+            prevTargetVel   = targetVel;
+            prevTargetAccel = filt;
+            return filt;
+        }
+
+        private Vector3D PredictLOS(Vector3D pos, Vector3D vel, Vector3D accel, double t)
+        {
+            var predPos = pos + vel * t + 0.5 * accel * t * t;
+            return Vector3D.Normalize(predPos - Position);
+        }
+
+        private double ComputeLeadWeight(Vector3D LOS, Vector3D targetVel)
+        {
+            var tgtDir = targetVel.LengthSquared() > 1e-6 
+                        ? Vector3D.Normalize(targetVel) 
+                        : LOS;
+            var cosA   = MathHelper.Clamp(Vector3D.Dot(LOS, tgtDir), -1, 1);
+            // weight in [0.9,1.0] to avoid zero‐lead at high aspect
+            return MathHelper.Clamp(cosA, 0.9, 1.0);
+        }
+
+        private Vector3D ComputePNGuidance(
+            double range, Vector3D LOS, Vector3D relVel,
+            Vector3D tgtPos, Vector3D tgtVel, Vector3D tgtAccel, double leadWeight)
+        {
+            // Predict target velocity & cap
+            var lookahead = Math.Min(maxPredictTime, range / Math.Max(Velocity.Length(), 1.0))
+                            + seekerLatency;
+            var capped = Math.Min(lookahead, 2.0);
+            var predVel = tgtVel + tgtAccel * capped;
+            if (predVel.Length() > 104) 
+                predVel = Vector3D.Normalize(predVel) * 104;
+
+            // Future LOS & closing speed
+            var futureLOS     = Vector3D.Normalize((tgtPos + predVel * lookahead) - Position);
+            var closingSpeed  = -Vector3D.Dot(relVel, futureLOS);
+            const double CLOSING_THRESHOLD = 1.0;
+
+            if (closingSpeed < CLOSING_THRESHOLD)
+                return futureLOS * maxForwardAccelCapability;
+
+            // Proportional navigation
+            var navP   = baseNavP * MathHelper.Clamp(closingSpeed / nominalSpeed, 0.5, 2.0);
+            var omega  = Vector3D.Cross(futureLOS, relVel) / (range * range);
+            var desA   = navP * closingSpeed * Vector3D.Cross(omega, futureLOS);
+            var latA   = desA - Vector3D.Dot(desA, futureLOS) * futureLOS;
+
+            // Blend LOS & lead, then bias
+            var w       = MathHelper.Clamp(1.0 / (range + 0.1), nHeadingBiasMin, nHeadingBiasMax);
+            var leadDir = Vector3D.Normalize(latA);
+            var blend   = Vector3D.Normalize(Vector3D.Lerp(futureLOS, leadDir, leadWeight));
+            var bias    = Vector3D.Normalize(Vector3D.Lerp(blend, futureLOS, w));
+
+            return bias * maxForwardAccelCapability;
+        }
+
+        private Vector3D ComputeTerminalHoming(
+            double range, Vector3D LOS, Vector3D predLOS, Vector3D relVel, double leadWeight)
+        {
+            var w        = MathHelper.Clamp(1.0 / (range + 0.1), nHeadingBiasMin, nHeadingBiasMax);
+            var baseDir  = Vector3D.Normalize(Vector3D.Lerp(LOS, predLOS, w));
+
+            // lateral velocity cancellation
+            var latVel   = relVel - Vector3D.Dot(relVel, LOS) * LOS;
+            var cancel   = latVel.LengthSquared() > 1e-6 
+                        ? Vector3D.Normalize(latVel) 
+                        : Vector3D.Zero;
+            var cancelW  = 0.3 * leadWeight;
+            var blendDir = Vector3D.Normalize(cancel * cancelW + baseDir * (1 - cancelW));
+
+            return blendDir * maxForwardAccelCapability;
+        }
+
+        private Vector3D ApplyClosingVelocityCancel(
+            Vector3D accel, Vector3D rangeVec, Vector3D relVel, ref Vector3D rawAccel)
+        {
+            var closingVel = -Vector3D.Dot(relVel, rangeVec / rangeVec.Length());
+            if (closingVel < -25 && rangeVec.Length() > 100)
             {
-                Vector3D rangeVec = targetmissilePos - Position;
-                Vector3D toTargetDir = Vector3D.Normalize(rangeVec);
-                Vector3D relativeVelocity = targetVelocity - Velocity;
-
-                Vector3D VelocityNorm = Velocity.LengthSquared() > 1e-6f ? Vector3D.Normalize(Velocity) : toTargetDir;
-
-                double dotVelTarget = Vector3D.Dot(VelocityNorm, toTargetDir);
-                double angleBetween = (double)Math.Acos(MathHelper.Clamp(dotVelTarget, -1f, 1f));
-                double range = rangeVec.Length();
-
-                if (range < interceptRadius)
-                {
-                    double timeToIntercept = range / Math.Max(1f, Velocity.Length());
-                    Vector3D predictedTargetPos = targetmissilePos + relativeVelocity * (float)timeToIntercept;
-                    Vector3D predictedDir = Vector3D.Normalize(predictedTargetPos - targetmissilePos);
-
-                    Vector3D biasedDir = Vector3D.Normalize(Vector3D.Lerp(toTargetDir, predictedDir, headingBiasWeight));
-
-                    return biasedDir  * maxAccelCapability;
-                }
-                else
-                {
-                    double rangeSq = rangeVec.LengthSquared();
-                    double closingSpeed = -Vector3D.Dot(relativeVelocity, Vector3D.Normalize(toTargetDir));
-
-                    Vector3D omegaL = Vector3D.Cross(toTargetDir, relativeVelocity) / (float)rangeSq;
-                    Vector3D desiredAccel = navP * (float)closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(toTargetDir));
-
-                    Vector3D lateralDesiredAccel = desiredAccel - Vector3D.Dot(desiredAccel, toTargetDir) * toTargetDir;
-
-                    Vector3D biasedDir = Vector3D.Normalize(toTargetDir);
-                    if (lateralDesiredAccel.LengthSquared() > 0.01f)
-                    {
-                        Vector3D desiredDirection = Vector3D.Normalize(lateralDesiredAccel);
-
-                        biasedDir = Vector3D.Normalize(Vector3D.Lerp(desiredDirection, toTargetDir, headingBiasWeight));
-                    }
-
-                    Vector3D rawAccel = biasedDir * maxAccelCapability;
-
-                    Vector3D dampedAccel = Vector3D.Lerp(previousAccel, rawAccel, 1.0f - dampingFactor);
-                    previousAccel = dampedAccel;
-
-                    return dampedAccel;
-                }
+                var cancelAccel = (relVel * (rangeVec / rangeVec.Length())) * cancelGain;
+                rawAccel += cancelAccel;
             }
+            return rawAccel;
+        }
 
-            private Vector3D CalculateLateralAccel(Vector3D rangeVec, Vector3D closingVelocity)
+        private Vector3D LimitJerk(Vector3D damped, double dt)
+        {
+            var jerk     = (damped - prevAccel) / dt;
+            var maxJ     = maxG * 9.81 / dt;
+            var clamped  = jerk.Length() > maxJ 
+                        ? Vector3D.Normalize(jerk) * maxJ 
+                        : jerk;
+            prevAccel    = prevAccel + clamped * dt;
+            return prevAccel;
+        }
+
+        private Vector3D ApplyBoresightClamp(
+            Vector3D accel, Vector3D forwardNorm, Vector3D predLOS, double range, ref Vector3D rawAccel)
+        {
+            var blendFwd = Vector3D.Normalize(forwardNorm * 0.8 + predLOS * 0.2);
+            var maxAng   = MathHelper.Lerp(90.0, 30.0, MathHelper.Clamp(range / 300.0, 0.0, 1.0));
+
+            // if we’re in hyper-aggressive cancel mode, switch to pure cancel
+            if (rawAccel == /* flagged hyper-aggressive accel */) 
+                return /* cancelAccel logic */;
+
+            return LimitAngleFromForward(accel, blendFwd, maxForwardAccelCapability, maxAng);
+        }
+
+        private Vector3D ApplyGLimit(Vector3D accel)
+        {
+            var gLoad = accel.Length() / 9.81;
+            if (gLoad > maxG)
+                accel *= (maxG / gLoad);
+            return accel;
+        }
+
+        #endregion
+
+
+            private Vector3D LimitAngleFromForward(Vector3D accel, Vector3D forwardDir, double accelMagnitude, double maxAngleDeg)
             {
-                double rangeSquared = rangeVec.LengthSquared();
-                if (rangeSquared < 1e-6f)
+                Vector3D accelDir = Vector3D.Normalize(accel);
+                double dot = Vector3D.Dot(accelDir, forwardDir);
+
+                if (dot >= CosMaxAngle)
+                    return accel; // Already within allowed cone
+
+                // Clamp to cone edge
+                Vector3D clampedDir = Vector3D.Normalize(Vector3D.Lerp(forwardDir, accelDir, 1f));
+                double clampedDot = Vector3D.Dot(clampedDir, forwardDir);
+                if (clampedDot < CosMaxAngle)
                 {
-                    return Vector3D.Zero;
+                    // Clamp to exact cone edge
+                    Vector3D axis = Vector3D.Cross(forwardDir, accelDir);
+                    if (axis.LengthSquared() < 1e-6f)
+                        return forwardDir * accelMagnitude;
+
+                    axis = Vector3D.Normalize(axis);
+                    QuaternionD rot = QuaternionD.CreateFromAxisAngle(axis, maxAngleDeg * Math.PI / 180.0);
+                    clampedDir = Vector3D.Transform(forwardDir, rot);
                 }
 
-                double closingSpeed = -Vector3D.Dot(closingVelocity, Vector3D.Normalize(rangeVec));
-                Vector3D omegaL = Vector3D.Cross(rangeVec, closingVelocity) / rangeSquared;
-                Vector3D accelCommand = navP * closingSpeed * Vector3D.Cross(omegaL, Vector3D.Normalize(rangeVec));
-
-                return accelCommand;
+                return clampedDir * accelMagnitude;
             }
-
 
             private void UpdateRadarRefreshRate(double distanceToTargetSquared)
             {
@@ -515,7 +639,7 @@ namespace IngameScript
                         aimDirection, out yaw, out pitch
                     );
 
-                    double currentTime = currentPbTime * (1.0 / 60.0); // or TimeSinceStart
+                    double currentTime = currentPbTime * DeltaTime;
 
                     double yawOutput = yawPID.Compute(yaw, currentTime);
                     double pitchOutput = pitchPID.Compute(pitch, currentTime);
@@ -531,7 +655,7 @@ namespace IngameScript
                         aimDirection, out yaw, out pitch
                     );
 
-                    double currentTime = currentPbTime * (1.0 / 60.0);
+                    double currentTime = currentPbTime * DeltaTime;
 
                     double yawOutput = yawPID.Compute(yaw, currentTime);
                     double pitchOutput = pitchPID.Compute(pitch, currentTime);
