@@ -22,6 +22,8 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
+        static string globalScreamValue = "";
+
         DLBus dlBus;
         DLBus.ObjectTrackingStore externalTrackingStore;
 
@@ -230,7 +232,8 @@ namespace IngameScript
                 scheduler.Main();
             }
 
-            if ((updateSource & UpdateType.Update10) == UpdateType.Update10) {
+            if ((updateSource & UpdateType.Update10) == UpdateType.Update10)
+            {
             }
 
             if ((updateSource & UpdateType.Update100) == UpdateType.Update100)
@@ -249,6 +252,11 @@ namespace IngameScript
                 }
 
                 update100Counter++;
+            }
+
+            if (!string.IsNullOrEmpty(globalScreamValue))
+            {
+                Echo(globalScreamValue);
             }
         }
 

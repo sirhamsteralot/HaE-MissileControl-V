@@ -250,14 +250,14 @@ namespace IngameScript
                     return similarity >= 0.6f; // Threshold to declare as similar
                 }
 
-                private float VelocityDirectionSimilarity(Vector3 a, Vector3 b)
+                private float VelocityDirectionSimilarity(Vector3D a, Vector3D b)
                 {
-                    float dot = a.Dot(b);
-                    float magProduct = a.Length() * b.Length();
+                    double dot = a.Dot(b);
+                    double magProduct = a.Length() * b.Length();
                     if (magProduct == 0) return 0;
 
-                    float cosine = dot / magProduct;
-                    return Math.Max(0f, cosine);
+                    double cosine = dot / magProduct;
+                    return (float)Math.Max(0f, cosine);
                 }
                 
                 private Vector3D PredictLocation(Vector3D originalLocation, Vector3D velocity, long TimeDifference)
