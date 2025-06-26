@@ -28,6 +28,12 @@ namespace IngameScript
 
             private Vector3D planetCenterPos;
             private double planetGravity;
+            private double worldMaxSpeed;
+
+            public MissileManager(double worldMaxSpeed)
+            {
+                this.worldMaxSpeed = worldMaxSpeed;
+            }
 
             public IEnumerator<bool> LaunchMissile(
                 IMyTerminalBlock referenceBlock,
@@ -52,7 +58,7 @@ namespace IngameScript
 
                 yield return true;
 
-                Missile missile = new Missile();
+                Missile missile = new Missile(worldMaxSpeed);
 
                 for (int i = gyros.Count - 1; i >= 0; i--)
                 {

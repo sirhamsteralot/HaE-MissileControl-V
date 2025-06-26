@@ -27,25 +27,16 @@ namespace IngameScript
     {
         public class Missile
         {
-            private const double baseNavP = 6;
-            private const double dampingFactor = 0.5;
-            private const double nominalSpeed = 80;
-            private const double cancelGain = 3;
+
             private const double maxForwardAccelCapability = 100;
-            private const double maxTurnRateRadPerSec = 6;
-            private const double referenceTurnRate = 6.2;
+            private const double minimumP = 3.5;
+            private const double maximumP = 5;
+            private const double accelP = 1;
+            private const double minimumClosingVel = -10;
 
-            private const double maxPredictTime = 3;
+            private const double maxPredictTime = 10;
             private const double maxAccelPredictTime = 2;
-            private const double seekerLatency = 0.16;
-            private const double interceptRadius = 15;
-            private const double accelFilterAlpha = 0.8;
             private const double DeltaTime = 1.0 / 60.0;
-            private const double nHeadingBiasMin = 0.4;
-            private const double nHeadingBiasMax = 0.8;
-            private const double maxG = 100.0;
-
-            private const double ExternalToRadarToleranceSquared = 2000 * 2000;
 
             public enum MissileHealth
             {
@@ -95,10 +86,13 @@ namespace IngameScript
             private PIDController yawPID = new PIDController(15, 0.0, 0.1);
             private PIDController pitchPID = new PIDController(15, 0.0, 0.1);
 
-            public Missile()
+            private double worldMaxSpeed;
+
+            public Missile(double worldMaxSpeed)
             {
-                FlightState = MissileFlightState.Unknown;
-                Health = MissileHealth.Unknown;
+                this.worldMaxSpeed = worldMaxSpeed;
+                this.FlightState = MissileFlightState.Unknown;
+                this.Health = MissileHealth.Unknown;
             }
 
             public bool Initialize()
@@ -234,7 +228,7 @@ namespace IngameScript
                 }
 
                 targetPos = radarTrackingModule.TargetPosition;
-                targetAcc = radarTrackingModule.TargetVelocity - targetAcc;
+                targetAcc = Vector3D.Lerp(radarTrackingModule.TargetVelocity - targetVel, targetAcc, 0.5);
                 targetVel = radarTrackingModule.TargetVelocity;
 
 
@@ -291,8 +285,8 @@ namespace IngameScript
                 // s = ut + 0.5at²
                 Vector3D predictedTargetPos = targetPos + targetVel * predictionTime + 0.5 * targetAccel * predictionTime * predictionTime;
                 Vector3D predictedTargetVel = targetVel + targetAccel * Math.Min(maxAccelPredictTime, predictionTime);
-                if (predictedTargetVel.LengthSquared() > 100 * 100)
-                    predictedTargetVel = Vector3D.Normalize(predictedTargetVel) * 100;
+                if (predictedTargetVel.LengthSquared() > worldMaxSpeed * worldMaxSpeed)
+                    predictedTargetVel = Vector3D.Normalize(predictedTargetVel) * worldMaxSpeed;
 
                 // --- Recompute guidance using predicted target state ---
                 Vector3D newRelPos = predictedTargetPos - missilePos;
@@ -305,18 +299,25 @@ namespace IngameScript
                 Vector3D los = newRelPos / newDistance;
                 double closingVel = -Vector3D.Dot(newRelVel, los);
 
+                Vector3D targetAccelPerp = targetAccel - los * Vector3D.Dot(targetAccel, los);
+
+                if (closingVel < minimumClosingVel)
+                {
+                    Vector3D losDir = Vector3D.Normalize(los);
+
+                    return Vector3D.Lerp(-targetAccelPerp, losDir, 0.5);
+                }
+
                 Vector3D losRate = (distanceSq > 1e-4)
                     ? Vector3D.Cross(newRelPos, newRelVel) / distanceSq
                     : Vector3D.Zero;
 
                 // Adaptive navigation constant
-                double navigationConstant = MathHelper.Lerp(3.0, 6.0, MathHelper.Clamp(newDistance / 2000.0, 0, 1));
+                double navigationConstant = MathHelper.Lerp(minimumP, maximumP, MathHelper.Clamp(newDistance / 2000.0, 0, 1));
 
                 Vector3D pnAccel = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
 
-                Vector3D targetAccelPerp = targetAccel - los * Vector3D.Dot(targetAccel, los);
-
-                Vector3D accelCmd = pnAccel + targetAccelPerp;
+                Vector3D accelCmd = pnAccel + targetAccelPerp * accelP;
 
                 // Clamp to max acceleration
                 double accelMagSq = accelCmd.LengthSquared();
@@ -324,10 +325,6 @@ namespace IngameScript
                 {
                     accelCmd = Vector3D.Normalize(accelCmd) * maxForwardAccelCapability;
                 }
-
-                // Smooth output using exponential decay
-                double smoothingFactor = Math.Exp(-deltaTime / 0.2);
-                accelCmd = Vector3D.Lerp(accelCmd, previousAccel, smoothingFactor);
 
                 previousAccel = accelCmd;
 
@@ -343,15 +340,19 @@ namespace IngameScript
 
                 if (distanceToTargetSquared > 3000 * 3000)
                 {
-                    radarTrackingModule.ForcedRefreshRate = 15;
+                    radarTrackingModule.ForcedRefreshRate = 25;
                 }
                 else if (distanceToTargetSquared > 1500 * 1500)
                 {
-                    radarTrackingModule.ForcedRefreshRate = 5;
+                    radarTrackingModule.ForcedRefreshRate = 10;
                 }
                 else if (distanceToTargetSquared > 1000 * 1000)
                 {
-                    radarTrackingModule.ForcedRefreshRate = 1;
+                    radarTrackingModule.ForcedRefreshRate = 5;
+                }
+                else if (distanceToTargetSquared > 500 * 500)
+                {
+                    radarTrackingModule.ForcedRefreshRate = 2;
                 }
                 else
                 {
@@ -526,54 +527,66 @@ namespace IngameScript
             Vector3D previousDirection;
             private void AimInDirection(Vector3D aimDirection, long currentPbTime)
             {
-                double overshootCompensation = 0.9;
-                
-
                 if (thrustDirectionReference == null || !thrustDirectionReference.IsFunctional)
                     return;
+
                 var refMatrix = thrustDirectionReference.WorldMatrix;
+                double t = currentPbTime * DeltaTime;
+                if (t <= 0) t = 1.0 / 60.0;
 
-                Vector3D diffDirection = Vector3D.Normalize(refMatrix.Forward - previousDirection);
-                Vector3D diffTarget = Vector3D.Normalize(aimDirection - refMatrix.Forward);
+                // estimate rotation from last frame
+                double cosAng = MathHelper.Clamp(Vector3D.Dot(previousDirection, refMatrix.Forward), -1, 1);
+                double angle  = Math.Acos(cosAng);
+                Vector3D axis = Vector3D.Cross(previousDirection, refMatrix.Forward);
+                axis = axis.LengthSquared() > 1e-6 ? Vector3D.Normalize(axis) : Vector3D.Zero;
+                double angVelMag = angle / t;
+                double localYawRate   = Vector3D.Dot(axis, refMatrix.Up)    * angVelMag;
+                double localPitchRate = Vector3D.Dot(axis, refMatrix.Right) * angVelMag;
 
-                Vector3D difference = Vector3D.Normalize(diffDirection - diffTarget);
-                Vector3D compensatedAimDir = Vector3D.Reflect(difference, aimDirection) * overshootCompensation;
-
-                double dot = Vector3D.Dot(Forward, diffDirection);
-                if (dot < 0.95)
-                    dot = 0;
-
-                // programmable-block time (ticks) → seconds
-                    double t = currentPbTime * DeltaTime;
-
-                // ——————————————————————————————————————————————
-                // 2) Compute raw yaw & pitch error
-                // ——————————————————————————————————————————————
+                // compute errors
                 double yawError, pitchError;
                 DirectionToPitchYaw(
-                    refMatrix.Forward,
-                    refMatrix.Right,      // ← use Right for correct yaw sign
-                    refMatrix.Up,
-                    Vector3D.Normalize(aimDirection + difference * dot * overshootCompensation),
-                    out yawError,
-                    out pitchError
+                    refMatrix.Forward, refMatrix.Right, refMatrix.Up,
+                    Vector3D.Normalize(aimDirection),
+                    out yawError, out pitchError
                 );
 
-                // ——————————————————————————————————————————————
-                // 3) PID loops
-                // ——————————————————————————————————————————————
-                double rawYaw = yawPID.Compute(yawError, t);
-                double rawPitch = pitchPID.Compute(pitchError, t);
+                // — Feed-forward (optional; here desired rate = 0)
+                const double feedFwdGain = 0.2;
+                double ffYaw   = - localYawRate   * feedFwdGain;
+                double ffPitch = - localPitchRate * feedFwdGain;
 
+                // — adaptive damping params
+                const double dampBase  = 0.2;
+                const double dampSlope = 1.0;
+                const double maxRate   = 5.0;      // cap for slope
+                double rateCap = Math.Min(angVelMag, maxRate);
+                double adaptiveDamp = dampBase + dampSlope * rateCap;
+
+                // — continuous blend based on total pointing error
+                double errMag = Math.Sqrt(yawError*yawError + pitchError*pitchError);
+                const double blendRadius = 0.2;     // radians over which to ramp in damping  
+                double blend = MathHelper.Clamp(1 - (errMag / blendRadius), 0, 1);
+
+                // PID outputs
+                double rawYaw   = yawPID  .Compute(yawError,   t) + ffYaw;
+                double rawPitch = pitchPID.Compute(pitchError, t) + ffPitch;
+
+                // apply blended damping “brake”
+                rawYaw   -= blend * adaptiveDamp * localYawRate;
+                rawPitch -= blend * adaptiveDamp * localPitchRate;
+
+                // clamp & apply
                 const double maxGyro = Math.PI*2;
-                double yawOut = MathHelper.Clamp(rawYaw, -maxGyro, maxGyro);
+                double yawOut   = MathHelper.Clamp(rawYaw,   -maxGyro, maxGyro);
                 double pitchOut = MathHelper.Clamp(rawPitch, -maxGyro, maxGyro);
 
                 GyroUtils.ApplyGyroOverride(gyros, refMatrix, pitchOut, yawOut, 0);
 
                 previousDirection = refMatrix.Forward;
             }
-            
+
+                        
             public static void DirectionToPitchYaw(
                 Vector3D forward,   // ship’s forward
                 Vector3D right,     // ship’s right (not left!)

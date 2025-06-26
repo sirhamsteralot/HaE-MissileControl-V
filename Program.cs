@@ -213,7 +213,7 @@ namespace IngameScript
             if (externalTrackingStore == null)
                 externalTrackingStore = new DLBus.ObjectTrackingStore();
 
-            missileManager = new MissileManager();
+            missileManager = new MissileManager(World.SmallShipMaxSpeed);
         }
 
         public void Main(string argument, UpdateType updateSource)
