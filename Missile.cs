@@ -38,6 +38,10 @@ namespace IngameScript
             private const double maxAccelPredictTime = 2;
             private const double DeltaTime = 1.0 / 60.0;
 
+            private const double CruisingHeight = 10000;
+            private const double CruisingWaypointFraction = 0.1;
+            private const long targetUpdatedTimeoutSeeker = 60 * 30;
+
             public enum MissileHealth
             {
                 Unknown,
@@ -74,15 +78,14 @@ namespace IngameScript
 
             public DLBus.DLBusDetectedEntity ExternalTarget { get; private set; }
 
+            private Vector3D launchForward;
             private Vector3D planetCenterPos;
             private double planetGravity;
+            private double planetseaLevelRadius;
             private RadarTrackingModule radarTrackingModule;
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
 
-            private Vector3D prevTargetVel;
-            private Vector3D prevTargetAccel;
-            private Vector3D prevAccel;
             private PIDController yawPID = new PIDController(15, 0.0, 0.1);
             private PIDController pitchPID = new PIDController(15, 0.0, 0.1);
 
@@ -117,10 +120,11 @@ namespace IngameScript
                 return false;
             }
 
-            public void UpdatePlanetValues(Vector3D center, double gravity)
+            public void UpdatePlanetValues(Vector3D center, double gravity, double sealevelRadius)
             {
                 planetCenterPos = center;
                 planetGravity = gravity;
+                planetseaLevelRadius = sealevelRadius;
             }
 
             public void Flight(long currentPbTime)
@@ -165,6 +169,9 @@ namespace IngameScript
             {
                 if (lifeTimeCounter < 60 * 1)
                 {
+                    if (launchForward == Vector3D.Zero)
+                        launchForward = Forward;
+
                     AimInDirection(Forward, currentPbTime);
                     ThrustUtils.SetThrustBasedDot(thrusters, Forward);
                 }
@@ -192,24 +199,124 @@ namespace IngameScript
                 {
                     Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
-                    UpdateRadarRefreshRate(distanceFromTarget.LengthSquared());
+                    double distanceSquared = distanceFromTarget.LengthSquared();
 
-                    Vector3D directionToTarget = Vector3D.Normalize(distanceFromTarget);
-                    AimInDirection(directionToTarget, currentPbTime);
-                    ThrustUtils.SetThrustBasedDot(thrusters, directionToTarget);
+                    UpdateRadarRefreshRate(distanceSquared);
+
+                    Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity;
+                    Vector3D roughTargetLocationPrediction = predictedExternalPosition * (closingVelocity.LengthSquared() / distanceSquared);
+
+                    if (planetGravity > 1e-3)
+                    {
+                        Vector3D missilePlanetDir = Vector3D.Normalize(Position - planetCenterPos);
+                        Vector3D targetPlanetDir = Vector3D.Normalize(roughTargetLocationPrediction - planetCenterPos);
+
+                        Vector3D nextWaypointDir = VectorUtils.Slerp(missilePlanetDir, targetPlanetDir, CruisingWaypointFraction);
+                        Vector3D nextWaypoint = nextWaypointDir * (planetseaLevelRadius + CruisingHeight);
+
+                        Vector3D waypointDir = Vector3D.Normalize(nextWaypoint - Position);
+
+                        Vector3D accelCommand = Velocity - waypointDir * Vector3D.Dot(Velocity, waypointDir);
+                        accelCommand = -accelCommand;
+
+                        double accelMag = Math.Min(accelCommand.Normalize(), maxForwardAccelCapability - 10);
+                        double leftoverAccel = Math.Max(10, maxForwardAccelCapability - accelMag);
+
+                        Vector3D targetDir = targetPos - Position;
+                        double targetDist = targetDir.Normalize();
+                        if (targetDist < closestDist)
+                            closestDist = targetDist;
+
+                        accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
+
+                        if (Velocity.LengthSquared() > 95 * 95 && Velocity.Dot(waypointDir) > 0.95)
+                        {
+                            ThrustUtils.SetThrustPercentage(thrusters, 0f);
+                        }
+                        else
+                        {
+                            ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand));
+                        }
+
+                        AimInDirection(accelCommand, currentPbTime);
+                    }
+                    else
+                    {
+                        Vector3D directionToTarget = Vector3D.Normalize(distanceFromTarget);
+                        AimInDirection(directionToTarget, currentPbTime);
+
+                        if (Velocity.LengthSquared() > 95 * 95 && Velocity.Dot(directionToTarget) > 0.95)
+                        {
+                            ThrustUtils.SetThrustPercentage(thrusters, 0f);
+                        }
+                        else
+                        {
+                            ThrustUtils.SetThrustBasedDot(thrusters, directionToTarget);
+                        }
+                    }
+
+                    if (distanceSquared < 2500 * 2500 || (currentPbTime - ExternalTarget.DetectionReceivedTime) > targetUpdatedTimeoutSeeker)
+                    {
+                        FlightState = MissileFlightState.Terminal;
+                    }
                 }
                 else
                 {
-                    Vector3D fallbackDirection = Vector3D.Normalize(Velocity);
-                    ThrustUtils.SetThrustBasedDot(thrusters, fallbackDirection);
-                    AimInDirection(fallbackDirection, currentPbTime);
-                }
+                    if (planetGravity > 1e-3)
+                    {
+                        Vector3D missilePlanetDir = Vector3D.Normalize(Position - planetCenterPos);
+                        Vector3D targetPlanetDir = Vector3D.Normalize((Position + launchForward * 1000) - planetCenterPos);
 
-                if (lifeTimeCounter > 0)
-                {
-                    FlightState = MissileFlightState.Terminal;
+                        Vector3D nextWaypointDir = VectorUtils.Slerp(missilePlanetDir, targetPlanetDir, CruisingWaypointFraction);
+                        Vector3D nextWaypoint = nextWaypointDir * (planetseaLevelRadius + CruisingHeight);
+
+                        Vector3D waypointDir = Vector3D.Normalize(nextWaypoint - Position);
+
+                        Vector3D accelCommand = Velocity - waypointDir * Vector3D.Dot(Velocity, waypointDir);
+                        accelCommand = -accelCommand;
+
+                        double accelMag = Math.Min(accelCommand.Normalize(), maxForwardAccelCapability - maxForwardAccelCapability /2);
+                        double leftoverAccel = Math.Max(maxForwardAccelCapability /2, maxForwardAccelCapability - accelMag);
+
+                        Vector3D targetDir = targetPos - Position;
+                        double targetDist = targetDir.Normalize();
+                        if (targetDist < closestDist)
+                            closestDist = targetDist;
+
+                        accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
+
+                        if (VectorUtils.Project(Velocity, waypointDir).LengthSquared() > 95 * 95 && Vector3D.Normalize(Velocity).Dot(waypointDir) > 0.99)
+                        {
+                            ThrustUtils.SetThrustPercentage(thrusters, 0f);
+                        }
+                        else
+                        {
+                            ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand));
+                        }
+
+                        AimInDirection(Vector3D.Normalize(accelCommand), currentPbTime);
+
+                        Program.globalScreamValue = $"accelRequested {VectorUtils.Project(Velocity, waypointDir).Length()} {Vector3D.Dot(Vector3D.Normalize(accelCommand), Forward)}\ntargetpos{(Position + launchForward * 1000)}\n waypointDir {Vector3D.Normalize(Velocity).Dot(waypointDir)}";
+                    }
+                    else
+                    {
+                        if (Velocity.LengthSquared() > 95 * 95 && Velocity.Dot(launchForward) > 0.95)
+                        {
+                            ThrustUtils.SetThrustPercentage(thrusters, 0f);
+                        }
+                        else
+                        {
+                            ThrustUtils.SetThrustBasedDot(thrusters, launchForward);
+                        }
+
+                        AimInDirection(launchForward, currentPbTime);
+                    }
+
+                    if (radarTrackingModule.IsTracking)
+                        FlightState = MissileFlightState.Terminal;
                 }
             }
+
 
             Vector3D targetPos;
             Vector3D targetVel;

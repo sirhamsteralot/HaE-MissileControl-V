@@ -23,7 +23,7 @@ namespace IngameScript
 	partial class Program
 	{
         public static class VectorUtils
-	    {
+        {
             public static void CreateFibonacciSphere(List<Vector3D> sphereDirections, int samples, Random rnd = null)
             {
                 double rndNr = 1;
@@ -36,7 +36,7 @@ namespace IngameScript
 
                 for (int i = 0; i < samples; i++)
                 {
-                    double y = ((i *offset) - 1) + (offset / 2);
+                    double y = ((i * offset) - 1) + (offset / 2);
                     double r = Math.Sqrt(1 - (y * y));
 
                     double phi = ((i + rndNr) % samples) * increment;
@@ -57,7 +57,7 @@ namespace IngameScript
             }
 
             /// project one on two
-            public static Vector3D Project(Vector3D one, Vector3D two) 
+            public static Vector3D Project(Vector3D one, Vector3D two)
             {
                 Vector3D projection = one.Dot(two) / two.LengthSquared() * two;
                 return projection;
@@ -107,7 +107,7 @@ namespace IngameScript
             }
 
             /// mirror a over b
-            public static Vector3D Reflect(Vector3D a, Vector3D b, double rejectionFactor = 1) 
+            public static Vector3D Reflect(Vector3D a, Vector3D b, double rejectionFactor = 1)
             {
                 Vector3D project_a = Project(a, b);
                 Vector3D reject_a = a - project_a;
@@ -123,7 +123,7 @@ namespace IngameScript
             }
 
             /// returns angle in radians
-            public static double GetAngle(Vector3D One, Vector3D Two) 
+            public static double GetAngle(Vector3D One, Vector3D Two)
             {
                 return Math.Acos(MathHelper.Clamp(One.Dot(Two) / Math.Sqrt(One.LengthSquared() * Two.LengthSquared()), -1, 1));
             }
@@ -163,6 +163,54 @@ namespace IngameScript
             private static Vector3D Sqrt(Vector3D vector)
             {
                 return new Vector3D(Math.Sqrt(vector.X), Math.Sqrt(vector.Y), Math.Sqrt(vector.Z));
+            }
+            
+            public static Vector3D Slerp(Vector3D from, Vector3D to, double t)
+            {
+                // Clamp t to [0,1]
+                t = Math.Max(0.0, Math.Min(1.0, t));
+
+                double magFrom = from.Length();
+                double magTo   = to.Length();
+
+                // If either vector is zero-length, just lerp
+                if (magFrom < 1e-6 || magTo < 1e-6)
+                    return Vector3D.Lerp(from, to, t);
+
+                // Normalize directions
+                Vector3D dirFrom = from / magFrom;
+                Vector3D dirTo   = to   / magTo;
+
+                // Compute cosine of angle between
+                double cosTheta = Vector3D.Dot(dirFrom, dirTo);
+                // Clamp to avoid NaNs from acos
+                cosTheta = Math.Max(-1.0, Math.Min(1.0, cosTheta));
+
+                // If angle is very small, fall back to linear interpolation
+                const double epsilon = 1e-6;
+                if (1.0 - Math.Abs(cosTheta) < epsilon)
+                {
+                    // Lerp direction, then normalize
+                    Vector3D dir = Vector3D.Lerp(dirFrom, dirTo, t).Normalized();
+                    // Lerp magnitudes
+                    double mag = magFrom + (magTo - magFrom) * t;
+                    return dir * mag;
+                }
+
+                double theta    = Math.Acos(cosTheta);
+                double sinTheta = Math.Sin(theta);
+
+                // Slerp factors
+                double factorFrom = Math.Sin((1 - t) * theta) / sinTheta;
+                double factorTo   = Math.Sin(t * theta)       / sinTheta;
+
+                // Interpolate direction
+                Vector3D slerpedDir = dirFrom * factorFrom + dirTo * factorTo;
+
+                // Interpolate magnitude linearly
+                double slerpedMag = magFrom + (magTo - magFrom) * t;
+
+                return slerpedDir * slerpedMag;
             }
         }
 	}

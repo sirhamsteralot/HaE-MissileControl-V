@@ -247,8 +247,15 @@ namespace IngameScript
                     Vector3D planetPosition;
                     if (mainCockpit.TryGetPlanetPosition(out planetPosition))
                     {
-                        missileManager.UpdatePlanetValues(planetPosition, mainCockpit.GetNaturalGravity().Length());
+                        double elevation;
+                        if (mainCockpit.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out elevation))
+                        {
+                            double sealevelRadius = Vector3D.Distance(mainCockpit.GetPosition(), planetPosition) - elevation;
+                            missileManager.UpdatePlanetValues(planetPosition, mainCockpit.GetNaturalGravity().Length(), sealevelRadius);
+                        }
                     }
+
+
                 }
 
                 update100Counter++;

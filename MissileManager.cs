@@ -29,6 +29,7 @@ namespace IngameScript
             private Vector3D planetCenterPos;
             private double planetGravity;
             private double worldMaxSpeed;
+            private double planetSeaLevelRadius;
 
             public MissileManager(double worldMaxSpeed)
             {
@@ -128,7 +129,7 @@ namespace IngameScript
 
                 if (planetGravity > 0)
                 {
-                    missile.UpdatePlanetValues(planetCenterPos, planetGravity);
+                    missile.UpdatePlanetValues(planetCenterPos, planetGravity, planetSeaLevelRadius);
                 }
 
                 if (target != null)
@@ -166,10 +167,11 @@ namespace IngameScript
                 }
             }
 
-            public void UpdatePlanetValues(Vector3D planetCenter, double gravity)
+            public void UpdatePlanetValues(Vector3D planetCenter, double gravity, double sealevelRadius)
             {
                 planetCenterPos = planetCenter;
                 planetGravity = gravity;
+                planetSeaLevelRadius = sealevelRadius;
             }
         }
     }
