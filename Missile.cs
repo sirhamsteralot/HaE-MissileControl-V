@@ -169,8 +169,7 @@ namespace IngameScript
             {
                 if (lifeTimeCounter < 60 * 1)
                 {
-                    if (launchForward == Vector3D.Zero)
-                        launchForward = Forward;
+                    launchForward = Forward;
 
                     AimInDirection(Forward, currentPbTime);
                     ThrustUtils.SetThrustBasedDot(thrusters, Forward);
