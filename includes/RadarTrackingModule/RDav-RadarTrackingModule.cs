@@ -98,6 +98,12 @@ namespace IngameScript
             /// </summary>
             public void UpdateTracking(long CurrentPBTime_Ticks)
             {
+                if (CurrentTick > ForcedRefreshRate)
+                {
+                    L_CombatBLock.Enabled = false;
+                    L_CombatBLock.Enabled = true;
+                }
+
                 //Updates Time
                 CurrentTime = CurrentPBTime_Ticks;
 
@@ -159,17 +165,6 @@ namespace IngameScript
             {
                 get
                 {
-
-                    //This Is Emergency Ultra Burn, Use Only In Emergencies As Very Performance Intensive
-                    if (BoostMode)
-                    {
-                        L_CombatBLock.Enabled = false;
-                        L_CombatBLock.Enabled = true;
-                        var CurrentWaypoint = L_FlightBlock.CurrentWaypoint;
-                        var positionwaypoint = CurrentWaypoint.Matrix.GetRow(3);
-                        return new Vector3D(positionwaypoint.X, positionwaypoint.Y, positionwaypoint.Z);
-                    }
-
                     // Extracts Current Position
                     Vector3D lastPosition = p0.Position;
                     double lastTime = p0.Timestamp;
