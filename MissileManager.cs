@@ -140,10 +140,11 @@ namespace IngameScript
 
             public void ManageMissiles(long currentPbTime)
             {
-                foreach (var missile in launchedMissiles)
-                {
-                    if (missile.Health != Missile.MissileHealth.Dead)
-                        missile.Flight(currentPbTime);
+                for (int i = launchedMissiles.Count - 1; i >= 0; i--) {
+                    if (launchedMissiles[i].Health != Missile.MissileHealth.Dead)
+                        launchedMissiles[i].Flight(currentPbTime);
+                    else
+                        launchedMissiles.RemoveAt(i);
                 }
             }
 

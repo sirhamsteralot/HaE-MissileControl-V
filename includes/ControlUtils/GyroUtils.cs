@@ -70,6 +70,9 @@ namespace IngameScript
 
                 foreach (IMyGyro gyro in gyros)
                 {
+                    if (!gyro.IsFunctional)
+                        continue;
+
                     Vector3D gyroRotation = Vector3D.TransformNormal(relativeRotation, Matrix.Transpose(gyro.WorldMatrix));
 
                     gyro.Pitch = (float)gyroRotation.X;

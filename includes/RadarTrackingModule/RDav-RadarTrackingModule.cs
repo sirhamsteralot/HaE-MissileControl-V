@@ -98,11 +98,14 @@ namespace IngameScript
             /// </summary>
             public void UpdateTracking(long CurrentPBTime_Ticks)
             {
+                if (L_CombatBLock.Closed || L_FlightBlock.Closed)
+                    return;
+
                 if (CurrentTick > ForcedRefreshRate)
-                {
-                    L_CombatBLock.Enabled = false;
-                    L_CombatBLock.Enabled = true;
-                }
+                    {
+                        L_CombatBLock.Enabled = false;
+                        L_CombatBLock.Enabled = true;
+                    }
 
                 //Updates Time
                 CurrentTime = CurrentPBTime_Ticks;

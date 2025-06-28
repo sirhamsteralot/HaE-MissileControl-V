@@ -80,6 +80,7 @@ namespace IngameScript
             public MissileHealth Health { get; private set; }
             public MissileLockType LockType { get; private set; }
             public double FuelRemainingFraction { get; private set; }
+            public long GridEntityId => thrusters?.FirstOrDefault()?.CubeGrid.EntityId ?? 0;
             public long lifeTimeCounter { get; private set; }
 
 
@@ -187,9 +188,13 @@ namespace IngameScript
 
                 if (gasTanks.Count > 0)
                 {
+
                     foreach (var tank in gasTanks)
                     {
-                        total += tank.FilledRatio;
+                        if (tank.IsFunctional)
+                        {
+                            total += tank.FilledRatio;
+                        }
                     }
 
                     FuelRemainingFraction = total / gasTanks.Count;
@@ -198,7 +203,10 @@ namespace IngameScript
 
                 foreach (var battery in batteries)
                 {
-                    total += battery.CurrentStoredPower / battery.MaxStoredPower;
+                    if (battery.IsFunctional)
+                    {
+                        total += battery.CurrentStoredPower / battery.MaxStoredPower;
+                    }
                 }
 
                 FuelRemainingFraction = total / batteries.Count;
@@ -439,6 +447,9 @@ namespace IngameScript
             {
                 foreach (var warhead in warheads)
                 {
+                    if (warhead.Closed)
+                        continue;
+
                     warhead.IsArmed = true;
                 }
             }
@@ -447,6 +458,9 @@ namespace IngameScript
             {
                 foreach (var warhead in warheads)
                 {
+                    if (warhead.Closed)
+                        continue;
+
                     warhead.IsArmed = true;
                     warhead.Detonate();
                 }
@@ -661,7 +675,7 @@ namespace IngameScript
 
             private Vector3D GetForward()
             {
-                if (thrustDirectionReference != null)
+                if (thrustDirectionReference != null && !thrustDirectionReference.Closed)
                 {
                     return VectorUtils.TransformDirLocalToWorld(thrustDirectionReference.WorldMatrix, majorityThrustDirectionLocal);
                 }
@@ -678,7 +692,6 @@ namespace IngameScript
             private Vector3D GetMajorityThrustDirectionLocal(List<IMyThrust> thrusters)
             {
                 var directionCounts = new Dictionary<Vector3D, int>();
-
 
                 foreach (var thruster in thrusters)
                 {

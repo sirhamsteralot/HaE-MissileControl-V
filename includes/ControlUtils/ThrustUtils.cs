@@ -56,6 +56,9 @@ namespace IngameScript
             {
                 foreach (var thruster in thrusters)
                 {
+                    if (thruster.Closed)
+                        continue;
+                        
                     if (!thruster.Enabled)
                         thruster.Enabled = true;
 
@@ -92,8 +95,11 @@ namespace IngameScript
             {
                 foreach (var thrust in thrusters)
                 {
+                    if (thrust.Closed)
+                        continue;
+
                     if (!thrust.Enabled)
-                        thrust.Enabled = true;
+                            thrust.Enabled = true;
 
                     double thrustpercentage = Vector3D.Dot(thrust.WorldMatrix.Backward, direction);
 
