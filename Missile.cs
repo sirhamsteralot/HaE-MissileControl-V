@@ -577,18 +577,6 @@ namespace IngameScript
 
             public void UpdateMissileHealth()
             {
-                if (radarTrackingModule == null)
-                {
-                    Health = MissileHealth.Degraded;
-                    return;
-                }
-
-                if (!radarTrackingModule.CheckWorking())
-                {
-                    Health = MissileHealth.Degraded;
-                    return;
-                }
-
                 int thrusterWorkingCount = thrusters.Count(x => x.IsWorking);
 
                 if (thrusterWorkingCount != thrusters.Count || thrusterWorkingCount == 0)
@@ -632,7 +620,7 @@ namespace IngameScript
 
                 int gasTankWorkingCount = gasTanks.Count(x => x.IsWorking);
 
-                if (gasTankWorkingCount != gasTanks.Count)
+                if (gasTankWorkingCount != gasTanks.Count || gasTankWorkingCount == 0)
                 {
                     if (gasTankWorkingCount == 0)
                     {
@@ -646,7 +634,7 @@ namespace IngameScript
 
                 int batteryWorkingCount = batteries.Count(x => x.IsWorking);
 
-                if (batteryWorkingCount != batteries.Count)
+                if (batteryWorkingCount != batteries.Count || gasTankWorkingCount == 0)
                 {
                     if (batteryWorkingCount == 0)
                     {
@@ -654,6 +642,18 @@ namespace IngameScript
                         return;
                     }
 
+                    Health = MissileHealth.Degraded;
+                    return;
+                }
+
+                if (radarTrackingModule == null)
+                {
+                    Health = MissileHealth.Degraded;
+                    return;
+                }
+
+                if (!radarTrackingModule.CheckWorking())
+                {
                     Health = MissileHealth.Degraded;
                     return;
                 }
