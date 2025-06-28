@@ -82,6 +82,8 @@ namespace IngameScript
             public double FuelRemainingFraction { get; private set; }
             public long GridEntityId => thrusters?.FirstOrDefault()?.CubeGrid.EntityId ?? 0;
             public long lifeTimeCounter { get; private set; }
+            public double OriginalLaunchDistance;
+            public double CurrentTargetDistance;
 
 
             private long lastPositionVelocityUpdateTime = 0;
@@ -150,9 +152,6 @@ namespace IngameScript
                 if (lifeTimeCounter % 60 == 0)
                 {
                     UpdateMissileHealth();
-                }
-                else if (lifeTimeCounter + 30 % 60 == 0)
-                {
                     UpdateFuelCounter();
                 }
 
@@ -188,7 +187,6 @@ namespace IngameScript
 
                 if (gasTanks.Count > 0)
                 {
-
                     foreach (var tank in gasTanks)
                     {
                         if (tank.IsFunctional)
@@ -197,7 +195,8 @@ namespace IngameScript
                         }
                     }
 
-                    FuelRemainingFraction = total / gasTanks.Count;
+                    FuelRemainingFraction = total / (double)gasTanks.Count;
+                    Program.globalScreamValue = $"{FuelRemainingFraction}";
                     return;
                 }
 
@@ -209,7 +208,8 @@ namespace IngameScript
                     }
                 }
 
-                FuelRemainingFraction = total / batteries.Count;
+                FuelRemainingFraction = total / (double)batteries.Count;
+                Program.globalScreamValue = $"{FuelRemainingFraction}";
             }
 
             private void FlightLaunching(long currentPbTime)
@@ -246,12 +246,16 @@ namespace IngameScript
                 {
                     LockType = MissileLockType.External;
 
-                    Program.globalScreamValue = $"tgt: {ExternalTarget.EntityId}\nupdated: {ExternalTarget.DetectionReceivedTime}\npos: {ExternalTarget.LastKnownLocation}";
+                    // Program.globalScreamValue = $"tgt: {ExternalTarget.EntityId}\nupdated: {ExternalTarget.DetectionReceivedTime}\npos: {ExternalTarget.LastKnownLocation}";
                     Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
                     double distanceSquared = distanceFromTarget.LengthSquared();
 
                     UpdateRadarRefreshRate(distanceSquared);
+                    CurrentTargetDistance = distanceFromTarget.Length();
+
+                    if (OriginalLaunchDistance == 0)
+                        OriginalLaunchDistance = CurrentTargetDistance;
 
                     Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity;
                     Vector3D roughTargetLocationPrediction = predictedExternalPosition * (closingVelocity.LengthSquared() / distanceSquared);
@@ -358,8 +362,8 @@ namespace IngameScript
                         AimInDirection(thrustDir, currentPbTime);
 
                         // Debug
-                        Program.globalScreamValue =
-                            $"vT: {speedAlongTangent:F1}, aTan: {a_tangent.Length():F2}, aG: {a_gravity.Length():F2}";
+                        // Program.globalScreamValue =
+                        //     $"vT: {speedAlongTangent:F1}, aTan: {a_tangent.Length():F2}, aG: {a_gravity.Length():F2}";
 
                     }
                     else
@@ -418,6 +422,8 @@ namespace IngameScript
 
                 Vector3D targetDir = targetPos - Position;
                 double targetDist = targetDir.Normalize();
+
+                CurrentTargetDistance = targetDist;
                 if (targetDist < closestDist)
                     closestDist = targetDist;
 
@@ -437,7 +443,7 @@ namespace IngameScript
                 dot = MathHelper.Clamp(dot, -1.0, 1.0); // Clamp is critical for acos domain
                 double angleDegrees = MathHelper.ToDegrees(Math.Acos(dot));
 
-                Program.globalScreamValue = $"commanded:{accelMag:N3}\ndeg:{angleDegrees}\nleftover: {leftoverAccel:N3}\ntotal: {accelCommand.Length():N3}\ndist: {targetDist:N2}\nclosest: {closestDist:N2}";
+                // Program.globalScreamValue = $"commanded:{accelMag:N3}\ndeg:{angleDegrees}\nleftover: {leftoverAccel:N3}\ntotal: {accelCommand.Length():N3}\ndist: {targetDist:N2}\nclosest: {closestDist:N2}";
 
                 ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand)); // Changed from requiredAccelDir
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
@@ -463,6 +469,8 @@ namespace IngameScript
 
                     warhead.IsArmed = true;
                     warhead.Detonate();
+
+                    Health = MissileHealth.Dead;
                 }
             }
 

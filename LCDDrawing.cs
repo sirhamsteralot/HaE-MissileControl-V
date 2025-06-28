@@ -63,9 +63,6 @@ namespace IngameScript
             {
                 launchedMissiles.Clear();
                 launchedMissiles.AddRange(missiles);
-
-                for (int i = 0; i < 5; i++)
-                    launchedMissiles.Add(new Missile(100));
             }
 
             public void SelectTarget(DLBus.DLBusDetectedEntity selectedTarget)
@@ -106,7 +103,8 @@ namespace IngameScript
                 }
 
                 textSurface.ScriptBackgroundColor = Color.Black;
-
+                
+                launchedMissiles.RemoveAll(x => x.Health == Missile.MissileHealth.Dead);
                 launchedMissiles.SortNoAlloc((x, y) => x.lifeTimeCounter.CompareTo(y.lifeTimeCounter));
 
                 DrawSelectedTarget(ref drawFrame, viewPort, textSurface.SurfaceSize, currentlySelectedTarget, timestamp); // from 0 - 12%
@@ -222,8 +220,8 @@ namespace IngameScript
                 MySprite barBox = MySprite.CreateSprite("SquareSimple", progressBoxPosition, progressBoxSize);
                 barBox.Color = Color.LightGray;
                 drawFrame.Add(barBox);
-
-                float progress = (float)(random.NextDouble());
+            
+                float progress = 1f-(float)(Math.Min(missile.CurrentTargetDistance, missile.OriginalLaunchDistance) / Math.Max(missile.OriginalLaunchDistance, 1));
                 Vector2 progressBarSize = new Vector2(progressBoxSize.X, progressBoxSize.Y * progress);
                 Vector2 progressBarPosition = new Vector2(progressBoxPosition.X, progressBoxPosition.Y + progressBoxSize.Y / 2 - progressBarSize.Y / 2);
                 MySprite progressBox = MySprite.CreateSprite("SquareSimple", progressBarPosition, progressBarSize);
@@ -238,7 +236,7 @@ namespace IngameScript
                 fuelBarBox.Color = Color.LightGray;
                 drawFrame.Add(fuelBarBox);
 
-                float fuelprogress = (float)(random.NextDouble());
+                float fuelprogress = (float)(missile.FuelRemainingFraction);
                 Vector2 fuelProgressBarSize = new Vector2(fuelBoxSize.X, fuelBoxSize.Y * fuelprogress);
                 Vector2 fuelProgressBarPosition = new Vector2(fuelBoxPosition.X, fuelBoxPosition.Y + fuelBoxSize.Y / 2 - fuelProgressBarSize.Y / 2);
                 MySprite fuelProgressBox = MySprite.CreateSprite("SquareSimple", fuelProgressBarPosition, fuelProgressBarSize);
