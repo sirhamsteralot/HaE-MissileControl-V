@@ -58,6 +58,13 @@ namespace IngameScript
                 Terminal,
             }
 
+            public enum MissileLockType
+            {
+                External,
+                Internal,
+                None,
+            }
+
             public List<IMyThrust> thrusters = new List<IMyThrust>();
             public List<IMyGyro> gyros = new List<IMyGyro>();
             public List<IMyWarhead> warheads = new List<IMyWarhead>();
@@ -69,7 +76,10 @@ namespace IngameScript
 
             public MissileFlightState FlightState { get; private set; }
             public MissileHealth Health { get; private set; }
+            public MissileLockType LockType { get; private set; }
+            public double FuelRemainingFraction { get; private set; }
             public long lifeTimeCounter { get; private set; }
+
 
             private long lastPositionVelocityUpdateTime = 0;
             public Vector3D Position { get; private set; }
@@ -132,11 +142,15 @@ namespace IngameScript
                 if (radarTrackingModule != null)
                     radarTrackingModule.UpdateTracking(currentPbTime);
 
-                UpdateVelocityocityPosition(currentPbTime);
+                UpdateVelocityPosition(currentPbTime);
 
                 if (lifeTimeCounter % 60 == 0)
                 {
                     UpdateMissileHealth();
+                }
+                else if (lifeTimeCounter + 30 % 60 == 0)
+                {
+                    UpdateFuelCounter();
                 }
 
                 switch (FlightState)
@@ -163,6 +177,29 @@ namespace IngameScript
             public void UpdateTargetedEntity(DLBus.DLBusDetectedEntity detectedEntity)
             {
                 ExternalTarget = detectedEntity;
+            }
+
+            private void UpdateFuelCounter()
+            {
+                double total = 0;
+
+                if (gasTanks.Count > 0)
+                {
+                    foreach (var tank in gasTanks)
+                    {
+                        total += tank.FilledRatio;
+                    }
+
+                    FuelRemainingFraction = total / gasTanks.Count;
+                    return;
+                }
+
+                foreach (var battery in batteries)
+                {
+                    total += battery.CurrentStoredPower / battery.MaxStoredPower;
+                }
+
+                FuelRemainingFraction = total / batteries.Count;
             }
 
             private void FlightLaunching(long currentPbTime)
@@ -197,6 +234,8 @@ namespace IngameScript
             {
                 if (ExternalTarget != null)
                 {
+                    LockType = MissileLockType.External;
+
                     Program.globalScreamValue = $"tgt: {ExternalTarget.EntityId}\nupdated: {ExternalTarget.DetectionReceivedTime}\npos: {ExternalTarget.LastKnownLocation}";
                     Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
@@ -268,17 +307,19 @@ namespace IngameScript
                 }
                 else
                 {
+                    LockType = MissileLockType.None;
+
                     if (planetGravity > 1e-3)
                     {
                         // 1) Radial basis
-                        Vector3D toCenter    = planetCenterPos - Position;
-                        double   currentDist = toCenter.Length();
-                        Vector3D radialDir   = Vector3D.Normalize(toCenter);
+                        Vector3D toCenter = planetCenterPos - Position;
+                        double currentDist = toCenter.Length();
+                        Vector3D radialDir = Vector3D.Normalize(toCenter);
                         double desiredDist = planetseaLevelRadius * CruisingHeight;
 
                         // 2) True tangential dir from your current velocity
-                        Vector3D v_tang_un   = Velocity - radialDir * Vector3D.Dot(Velocity, radialDir);
-                        Vector3D tangent     = Vector3D.Normalize(v_tang_un);
+                        Vector3D v_tang_un = Velocity - radialDir * Vector3D.Dot(Velocity, radialDir);
+                        Vector3D tangent = Vector3D.Normalize(v_tang_un);
 
                         // 3) Velocity‑error P‑term
                         double kP = 0.75;
@@ -287,11 +328,11 @@ namespace IngameScript
 
                         // 4) Gravity/centripetal compensation
                         //    If planetGravity is your local g‑pull (positive number), it points _inward_ so we need to negate it to push outward:
-                        Vector3D a_gravity = - radialDir * (planetGravity + (desiredDist - currentDist));
+                        Vector3D a_gravity = -radialDir * (planetGravity + (desiredDist - currentDist));
 
                         // 5) Total accel, smooth, normalize for thrust direction
                         Vector3D accelUnsmoothed = a_tangent + a_gravity;
-                        Vector3D accelCommand    = Vector3D.Lerp(previousAccel, accelUnsmoothed, 0.3);
+                        Vector3D accelCommand = Vector3D.Lerp(previousAccel, accelUnsmoothed, 0.3);
                         previousAccel = accelCommand;
 
                         Vector3D thrustDir = Vector3D.Normalize(accelCommand);
@@ -307,7 +348,7 @@ namespace IngameScript
                         AimInDirection(thrustDir, currentPbTime);
 
                         // Debug
-                        Program.globalScreamValue = 
+                        Program.globalScreamValue =
                             $"vT: {speedAlongTangent:F1}, aTan: {a_tangent.Length():F2}, aG: {a_gravity.Length():F2}";
 
                     }
@@ -338,8 +379,11 @@ namespace IngameScript
             double closestDist = 5000;
             private void FlightTerminal(long currentPbTime)
             {
+                LockType = MissileLockType.Internal;
+
                 if (radarTrackingModule == null || !radarTrackingModule.IsTracking)
                 {
+                    LockType = MissileLockType.None;
                     // No target, fly straight
                     Vector3D fallbackDirection = Vector3D.Normalize(Velocity);
                     ThrustUtils.SetThrustBasedDot(thrusters, fallbackDirection);
@@ -566,7 +610,7 @@ namespace IngameScript
                 Health = MissileHealth.Healthy;
             }
 
-            private void UpdateVelocityocityPosition(long currentPbTime)
+            private void UpdateVelocityPosition(long currentPbTime)
             {
                 Vector3D currentPosition = Vector3D.Zero;
 
@@ -707,7 +751,7 @@ namespace IngameScript
             }
 
                         
-            public static void DirectionToPitchYaw(
+            private static void DirectionToPitchYaw(
                 Vector3D forward,   // ship’s forward
                 Vector3D right,     // ship’s right (not left!)
                 Vector3D up,        // ship’s up
