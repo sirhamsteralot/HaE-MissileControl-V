@@ -136,7 +136,12 @@ namespace IngameScript
                 if (target != null)
                     missile.UpdateTargetedEntity(target);
 
-                launchedMissiles.Add(missile);
+                if (missile.batteries.Count != 0 &&
+                    missile.thrusters.Count != 0 &&
+                    missile.gyros.Count != 0)
+                {
+                    launchedMissiles.Add(missile);    
+                }
             }
 
             public void ManageMissiles(long currentPbTime)

@@ -153,7 +153,6 @@ namespace IngameScript
                 {
                     UpdateMissileHealth();
                     UpdateFuelCounter();
-                    Program.globalScreamValue = "MISSILE HEALTH CHECK!";
                 }
 
                 switch (FlightState)
@@ -197,7 +196,6 @@ namespace IngameScript
                     }
 
                     FuelRemainingFraction = total / (double)gasTanks.Count;
-                    Program.globalScreamValue = $"{FuelRemainingFraction}";
                     return;
                 }
 
@@ -210,7 +208,6 @@ namespace IngameScript
                 }
 
                 FuelRemainingFraction = total / (double)batteries.Count;
-                Program.globalScreamValue = $"{FuelRemainingFraction}";
             }
 
             private void FlightLaunching(long currentPbTime)
@@ -577,9 +574,9 @@ namespace IngameScript
 
             public void UpdateMissileHealth()
             {
-                int thrusterWorkingCount = thrusters.Count(x => x.IsWorking);
+                int thrusterWorkingCount = thrusters.Count(x => x.IsFunctional);
 
-                if (thrusterWorkingCount != thrusters.Count || thrusterWorkingCount == 0)
+                if (thrusterWorkingCount != thrusters.Count)
                 {
                     if (thrusterWorkingCount == 0)
                     {
@@ -591,8 +588,8 @@ namespace IngameScript
                     return;
                 }
 
-                int gyroWorkingCount = gyros.Count(x => x.IsWorking);
-                if (gyroWorkingCount != gyros.Count|| gyroWorkingCount == 0)
+                int gyroWorkingCount = gyros.Count(x => x.IsFunctional);
+                if (gyroWorkingCount != gyros.Count)
                 {
                     if (gyroWorkingCount == 0)
                     {
@@ -604,7 +601,7 @@ namespace IngameScript
                     return;
                 }
 
-                int warheadWorkingCount = warheads.Count(x => x.IsWorking);
+                int warheadWorkingCount = warheads.Count(x => x.IsFunctional);
 
                 if (warheadWorkingCount != warheads.Count)
                 {
@@ -618,9 +615,9 @@ namespace IngameScript
                     return;
                 }
 
-                int gasTankWorkingCount = gasTanks.Count(x => x.IsWorking);
+                int gasTankWorkingCount = gasTanks.Count(x => x.IsFunctional);
 
-                if (gasTankWorkingCount != gasTanks.Count || gasTankWorkingCount == 0)
+                if (gasTankWorkingCount != gasTanks.Count)
                 {
                     if (gasTankWorkingCount == 0)
                     {
@@ -632,9 +629,9 @@ namespace IngameScript
                     return;
                 }
 
-                int batteryWorkingCount = batteries.Count(x => x.IsWorking);
+                int batteryWorkingCount = batteries.Count(x => x.IsFunctional);
 
-                if (batteryWorkingCount != batteries.Count || gasTankWorkingCount == 0)
+                if (batteryWorkingCount != batteries.Count)
                 {
                     if (batteryWorkingCount == 0)
                     {
