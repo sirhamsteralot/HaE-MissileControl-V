@@ -574,7 +574,7 @@ namespace IngameScript
 
             public void UpdateMissileHealth()
             {
-                int thrusterWorkingCount = thrusters.Count(x => x.IsFunctional);
+                int thrusterWorkingCount = thrusters.Count(x => x.IsFunctional && !x.Closed);
 
                 if (thrusterWorkingCount != thrusters.Count)
                 {
@@ -588,7 +588,7 @@ namespace IngameScript
                     return;
                 }
 
-                int gyroWorkingCount = gyros.Count(x => x.IsFunctional);
+                int gyroWorkingCount = gyros.Count(x => x.IsFunctional && !x.Closed);
                 if (gyroWorkingCount != gyros.Count)
                 {
                     if (gyroWorkingCount == 0)
@@ -601,7 +601,7 @@ namespace IngameScript
                     return;
                 }
 
-                int warheadWorkingCount = warheads.Count(x => x.IsFunctional);
+                int warheadWorkingCount = warheads.Count(x => x.IsFunctional && !x.Closed);
 
                 if (warheadWorkingCount != warheads.Count)
                 {
@@ -615,7 +615,7 @@ namespace IngameScript
                     return;
                 }
 
-                int gasTankWorkingCount = gasTanks.Count(x => x.IsFunctional);
+                int gasTankWorkingCount = gasTanks.Count(x => x.IsFunctional && !x.Closed);
 
                 if (gasTankWorkingCount != gasTanks.Count)
                 {
@@ -629,7 +629,7 @@ namespace IngameScript
                     return;
                 }
 
-                int batteryWorkingCount = batteries.Count(x => x.IsFunctional);
+                int batteryWorkingCount = batteries.Count(x => x.IsFunctional && !x.Closed);
 
                 if (batteryWorkingCount != batteries.Count)
                 {
