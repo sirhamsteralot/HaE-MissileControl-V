@@ -264,6 +264,7 @@ namespace IngameScript
             if (!string.IsNullOrEmpty(globalScreamValue))
             {
                 Echo(globalScreamValue);
+                mainCockpit.CustomData = globalScreamValue;
             }
         }
 
