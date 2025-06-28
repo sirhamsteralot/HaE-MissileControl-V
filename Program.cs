@@ -52,6 +52,8 @@ namespace IngameScript
         int update100Counter = 0;
         double averageRuntime = 0;
 
+        DLBus.DLBusDetectedEntity currentlySelectedEntity = null;
+
 
         public Program()
         {
@@ -254,9 +256,9 @@ namespace IngameScript
                             missileManager.UpdatePlanetValues(planetPosition, mainCockpit.GetNaturalGravity().Length(), sealevelRadius);
                         }
                     }
-
-
                 }
+
+                externalTrackingStore.CleanupClusters(Runtime.LifetimeTicks);
 
                 update100Counter++;
             }
@@ -282,14 +284,66 @@ namespace IngameScript
                 return true;
             }
 
-            if (normalizedArgument.StartsWith("select "))
+            if (normalizedArgument.StartsWith("select"))
             {
-                // TODO
+                var detections = externalTrackingStore.GetClustersAsDetections();
+
+                DLBus.DLBusDetectedEntity closestMatch = null;
+                double closestDotDir = -1;
+
+                foreach (var detection in detections)
+                {
+                    if (closestMatch == null)
+                    {
+                        closestMatch = detection;
+                    }
+
+                    Vector3D detectionDir = detection.LastKnownLocation - mainCockpit.GetPosition();
+                    double distance = detectionDir.Normalize();
+
+                    double dotDirection = Vector3D.Dot(mainCockpit.WorldMatrix.Forward, detectionDir);
+
+                    if (dotDirection > closestDotDir)
+                    {
+                        closestMatch = detection;
+                        closestDotDir = dotDirection;
+                    }
+                }
+
+                if (closestMatch != null)
+                {
+                    currentlySelectedEntity = closestMatch;
+                    string selectMessage = $"select {currentlySelectedEntity.EntityId}";
+                    Echo(selectMessage);
+                    IGC.SendBroadcastMessage(DATALINK_ARGUMENT_TOPIC, selectMessage, TransmissionDistance.CurrentConstruct);
+                }
+                else
+                {
+                    Echo("no entities!");
+                }
+
+
             }
 
             if (normalizedArgument.StartsWith("deselect"))
             {
-                // TODO
+                currentlySelectedEntity = null;
+                string deselectMessage = $"deselect";
+                IGC.SendBroadcastMessage(DATALINK_ARGUMENT_TOPIC, deselectMessage);
+            }
+
+            if (normalizedArgument.StartsWith("launch"))
+            {
+                if (currentlySelectedEntity != null)
+                {
+                    scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, currentlySelectedEntity));
+                    Echo($"Launched at {currentlySelectedEntity.LastKnownLocation}");
+                }
+                else
+                {
+                    Echo($"No Target selected!");
+                }
+
             }
 
             if (normalizedArgument.StartsWith("dumblaunch"))
@@ -302,6 +356,9 @@ namespace IngameScript
 
         private void OnNetworkEntityDetected(DLBus.DLBusDetectedEntity detectedEntity)
         {
+            if (currentlySelectedEntity != null && currentlySelectedEntity.EntityId == detectedEntity.EntityId)
+                currentlySelectedEntity = detectedEntity;
+
             newDetectedEntitiesList.Add(detectedEntity);
             externalTrackingStore.AddDetection(detectedEntity, Runtime.LifetimeTicks);
         }

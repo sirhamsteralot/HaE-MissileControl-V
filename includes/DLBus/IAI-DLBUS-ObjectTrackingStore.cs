@@ -27,7 +27,7 @@ namespace IngameScript
             public class ObjectTrackingStore
             {
                 public const float POSITIONEPSILON = 900f; // 30^2 (because sqrt is expensive and this is cheap)
-                public const long TIMEOUTTICKS = 10 * 60;
+                public const long TIMEOUTTICKS = 30 * 60;
                 public const float POSITIONWEIGHT = 1.0f;
                 public const float DIRECTIONWEIGHT = 0.3f;
 

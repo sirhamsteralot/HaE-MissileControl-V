@@ -22,13 +22,14 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const string versionString = "v0.2.0";
+        const string versionString = "v0.3.2";
 
         const double runtimeSignificance = 0.005;
 
         const string INISettingsHeader = "MissileControlSettings";
 
-        const string DATALINK_ARGUMENT_TOPIC = "MISSILECONTROL_V_PB_ARGUMENT";
+        const string MISSILECONTROL_ARGUMENT_TOPIC = "MISSILECONTROL_V_PB_ARGUMENT";
+        const string DATALINK_ARGUMENT_TOPIC = "DATALINK_PB_ARGUMENT";
 
         private readonly string[] runningIndicator = new string[] { "- - - - -", "- - 0 - -", "- 0 - 0 -", "0 - 0 - 0", "- 0 - 0 -", "- - 0 - -" };
 

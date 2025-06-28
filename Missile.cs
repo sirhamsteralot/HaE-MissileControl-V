@@ -39,7 +39,7 @@ namespace IngameScript
             private const double DeltaTime = 1.0 / 60.0;
 
             private const double CruisingHeight = 1.15;
-            private const double CruisingWaypointFraction = 0.1;
+            private const double CruisingWaypointFraction = 0.05;
             private const long targetUpdatedTimeoutSeeker = 60 * 30;
 
             public enum MissileHealth
@@ -197,6 +197,7 @@ namespace IngameScript
             {
                 if (ExternalTarget != null)
                 {
+                    Program.globalScreamValue = $"tgt: {ExternalTarget.EntityId}\nupdated: {ExternalTarget.DetectionReceivedTime}\npos: {ExternalTarget.LastKnownLocation}";
                     Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
                     double distanceSquared = distanceFromTarget.LengthSquared();
@@ -206,7 +207,7 @@ namespace IngameScript
                     Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity;
                     Vector3D roughTargetLocationPrediction = predictedExternalPosition * (closingVelocity.LengthSquared() / distanceSquared);
 
-                    if (planetGravity > 1e-3 && distanceSquared > 8000 * 8000)
+                    if (planetGravity > 1e-3 && distanceSquared > 2500 * 2500)
                     {
                         // 1) Radial basis
                         Vector3D toCenter    = planetCenterPos - Position;
