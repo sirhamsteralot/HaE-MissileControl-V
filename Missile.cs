@@ -153,6 +153,7 @@ namespace IngameScript
                 {
                     UpdateMissileHealth();
                     UpdateFuelCounter();
+                    Program.globalScreamValue = "MISSILE HEALTH CHECK!";
                 }
 
                 switch (FlightState)
@@ -574,7 +575,7 @@ namespace IngameScript
                 }
             }
 
-            private void UpdateMissileHealth()
+            public void UpdateMissileHealth()
             {
                 if (radarTrackingModule == null)
                 {
@@ -590,7 +591,7 @@ namespace IngameScript
 
                 int thrusterWorkingCount = thrusters.Count(x => x.IsWorking);
 
-                if (thrusterWorkingCount != thrusters.Count)
+                if (thrusterWorkingCount != thrusters.Count || thrusterWorkingCount == 0)
                 {
                     if (thrusterWorkingCount == 0)
                     {
@@ -603,7 +604,7 @@ namespace IngameScript
                 }
 
                 int gyroWorkingCount = gyros.Count(x => x.IsWorking);
-                if (gyroWorkingCount != gyros.Count)
+                if (gyroWorkingCount != gyros.Count|| gyroWorkingCount == 0)
                 {
                     if (gyroWorkingCount == 0)
                     {

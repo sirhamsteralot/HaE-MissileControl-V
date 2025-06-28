@@ -126,6 +126,7 @@ namespace IngameScript
 
                 yield return true;
                 missile.Initialize();
+                
 
                 if (planetGravity > 0)
                 {
