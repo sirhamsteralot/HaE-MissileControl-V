@@ -39,8 +39,10 @@ namespace IngameScript
             private const double DeltaTime = 1.0 / 60.0;
 
             private const double CruisingHeight = 1.15;
-            private const double CruisingWaypointFraction = 0.05;
             private const long targetUpdatedTimeoutSeeker = 60 * 30;
+
+            private const double proximityDetonationDistance = 5;
+            private const double proximityArmingDistance = 25;
 
             public enum MissileHealth
             {
@@ -411,6 +413,15 @@ namespace IngameScript
                 if (targetDist < closestDist)
                     closestDist = targetDist;
 
+                if (targetDist < proximityDetonationDistance)
+                {
+                    Detonate();
+                }
+                else if (targetDist < proximityArmingDistance)
+                {
+                    Arm();
+                }
+
                 accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
                 Vector3D lookCommand = accelCommand;
 
@@ -422,6 +433,23 @@ namespace IngameScript
 
                 ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand)); // Changed from requiredAccelDir
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
+            }
+
+            private void Arm()
+            {
+                foreach (var warhead in warheads)
+                {
+                    warhead.IsArmed = true;
+                }
+            }
+
+            private void Detonate()
+            {
+                foreach (var warhead in warheads)
+                {
+                    warhead.IsArmed = true;
+                    warhead.Detonate();
+                }
             }
 
             Vector3D previousAccel;
