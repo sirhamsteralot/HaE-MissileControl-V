@@ -166,7 +166,7 @@ namespace IngameScript
                         {
                             launchedMissiles[i].Flight(currentPbTime);
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             launchedMissiles.RemoveAt(i);
                         }
