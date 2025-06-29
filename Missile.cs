@@ -529,22 +529,11 @@ namespace IngameScript
                 double timeToIntercept = (relSpeed > 1e-2) ? distance / relSpeed : 0.0;
                 double predictionTime = Math.Min(timeToIntercept, maxPredictTime);
 
-                // --- Predict future target state ---
-                // s = ut + 0.5at²
-                Vector3D predictedTargetPos = targetPos + targetVel * predictionTime + 0.5 * targetAccel * predictionTime * predictionTime;
-                Vector3D predictedTargetVel = targetVel + targetAccel * Math.Min(maxAccelPredictTime, predictionTime);
-                if (predictedTargetVel.LengthSquared() > worldMaxSpeed * worldMaxSpeed)
-                    predictedTargetVel = Vector3D.Normalize(predictedTargetVel) * worldMaxSpeed;
 
-                // --- Recompute guidance using predicted target state ---
-                Vector3D newRelPos = predictedTargetPos - missilePos;
-                double distanceSq = newRelPos.LengthSquared();
-                double newDistance = Math.Sqrt(distanceSq);
+                if (distance < 1e-4) return Vector3D.Zero; // avoid instability
 
-                if (distanceSq < 1e-4) return Vector3D.Zero; // avoid instability
-
-                Vector3D newRelVel = predictedTargetVel - missileVel;
-                Vector3D los = newRelPos / newDistance;
+                Vector3D newRelVel = targetVel - missileVel;
+                Vector3D los = relPos / distance;
                 double closingVel = -Vector3D.Dot(newRelVel, los);
 
                 Vector3D targetAccelPerp = targetAccel - los * Vector3D.Dot(targetAccel, los);
@@ -556,12 +545,12 @@ namespace IngameScript
                     return Vector3D.Lerp(-targetAccelPerp, losDir, 0.5);
                 }
 
-                Vector3D losRate = (distanceSq > 1e-4)
-                    ? Vector3D.Cross(newRelPos, newRelVel) / distanceSq
+                Vector3D losRate = (distance > 1e-4)
+                    ? Vector3D.Cross(relPos, newRelVel) / (distance * distance)
                     : Vector3D.Zero;
 
                 // Adaptive navigation constant
-                double navigationConstant = MathHelper.Lerp(minimumP, maximumP, MathHelper.Clamp(newDistance / 2000.0, 0, 1));
+                double navigationConstant = MathHelper.Lerp(minimumP, maximumP, MathHelper.Clamp(distance / 2000.0, 0, 1));
 
                 Vector3D pnAccel = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
 
