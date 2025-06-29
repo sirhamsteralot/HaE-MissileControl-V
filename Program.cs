@@ -46,6 +46,7 @@ namespace IngameScript
         List<IMyWarhead> warheads = new List<IMyWarhead>();
         List<IMyGasTank> gasTanks = new List<IMyGasTank>();
         List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
+        List<IMyShipConnector> connectors = new List<IMyShipConnector>();
         IMyCockpit mainCockpit;
 
         List<DLBus.DLBusDetectedEntity> newDetectedEntitiesList = new List<DLBus.DLBusDetectedEntity>();
@@ -148,6 +149,15 @@ namespace IngameScript
 
         private void FetchMissileBlocks()
         {
+            movementBlocks.Clear();
+            combatBlocks.Clear();
+            mergeBlocks.Clear();
+            connectors.Clear();
+            gyros.Clear();
+            thrusters.Clear();
+            gasTanks.Clear();
+            batteries.Clear();
+
             GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, x =>
             {
                 if (x.CustomData.Contains(scriptExcludeTag))
@@ -180,6 +190,13 @@ namespace IngameScript
                     }
                     return false;    
 
+                }
+
+                var connector = x as IMyShipConnector;
+                if (connector != null)
+                {
+                    connectors.Add(connector);
+                    return false;
                 }
 
                 var gyro = x as IMyGyro;
@@ -270,6 +287,11 @@ namespace IngameScript
                     }
                 }
 
+                if (update100Counter % 5 == 0)
+                {
+                    FetchMissileBlocks();
+                }
+
                 externalTrackingStore.CleanupClusters(Runtime.LifetimeTicks);
 
                 update100Counter++;
@@ -348,7 +370,7 @@ namespace IngameScript
             {
                 if (currentlySelectedEntity != null)
                 {
-                    scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, currentlySelectedEntity));
+                    scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors, currentlySelectedEntity));
                     Echo($"Launched at {currentlySelectedEntity.LastKnownLocation}");
                 }
                 else
@@ -360,7 +382,7 @@ namespace IngameScript
 
             if (normalizedArgument.StartsWith("dumblaunch"))
             {
-                scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries));
+                scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors));
             }
 
             return false;

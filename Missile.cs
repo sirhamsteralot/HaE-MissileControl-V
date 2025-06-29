@@ -39,7 +39,7 @@ namespace IngameScript
             private const double DeltaTime = 1.0 / 60.0;
 
             private const double CruisingHeight = 1.15;
-            private const long targetUpdatedTimeoutSeeker = 60 * 30;
+            private const long targetUpdatedTimeoutSeeker = 60 * 60;
 
             private const double proximityDetonationDistance = 5;
             private const double proximityArmingDistance = 25;
@@ -72,6 +72,7 @@ namespace IngameScript
             public List<IMyWarhead> warheads = new List<IMyWarhead>();
             public List<IMyGasTank> gasTanks = new List<IMyGasTank>();
             public List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
+            public List<IMyShipConnector> connectors = new List<IMyShipConnector>();
 
             public IMyFlightMovementBlock flightMovementBlock;
             public IMyOffensiveCombatBlock offensiveCombatBlock;
@@ -122,6 +123,34 @@ namespace IngameScript
                 }
 
                 lifeTimeCounter = 0;
+
+                foreach (var connector in connectors)
+                {
+                    connector.Enabled = true;
+                    connector.Disconnect();
+                }
+
+                foreach (var gyro in gyros)
+                {
+                    gyro.Enabled = true;
+                }
+
+                foreach (var thruster in thrusters)
+                {
+                    thruster.Enabled = true;
+                }
+
+                foreach (var gastank in gasTanks)
+                {
+                    gastank.Enabled = true;
+                    gastank.Stockpile = false;
+                }
+
+                foreach (var battery in batteries)
+                {
+                    battery.Enabled = true;
+                    battery.ChargeMode = ChargeMode.Auto;
+                }
 
                 UpdateMissileHealth();
                 majorityThrustDirectionLocal = GetMajorityThrustDirectionLocal(thrusters);

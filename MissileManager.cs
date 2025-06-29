@@ -46,6 +46,7 @@ namespace IngameScript
                 List<IMyWarhead> warheads,
                 List<IMyGasTank> gasTanks,
                 List<IMyBatteryBlock> batteries,
+                List<IMyShipConnector> connectors,
                 DLBus.DLBusDetectedEntity target = null)
             {
                 foreach (var mergeBlock in mergeBlocks)
@@ -67,6 +68,15 @@ namespace IngameScript
                     {
                         missile.gyros.Add(gyros[i]);
                         gyros.RemoveAt(i);
+                    }
+                }
+
+                for (int i = connectors.Count - 1; i >= 0; i--)
+                {
+                    if (!connectors[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.connectors.Add(connectors[i]);
+                        connectors.RemoveAt(i);
                     }
                 }
 
