@@ -306,8 +306,11 @@ namespace IngameScript
                         Vector3D v_err = tangent * worldMaxSpeed - Velocity;
                         Vector3D a_tangent = v_err * kP;
 
-                        if (Vector3D.Dot(radialDir, toTarget) > 0.8)
-                            desiredDist = targetAltitude;
+                        double radialDot = Vector3D.Dot(radialDir, toTarget);
+                        if (radialDot > 0.8)
+                        {
+                            FlightState = MissileFlightState.Terminal;
+                        }
 
                         // 4) Gravity/centripetal compensation
                         //    If planetGravity is your local g‑pull (positive number), it points _inward_ so we need to negate it to push outward:
@@ -427,6 +430,12 @@ namespace IngameScript
                     LockType = MissileLockType.None;
                     // No target, fly straight
                     Vector3D fallbackDirection = Vector3D.Normalize(Velocity);
+
+                    if (ExternalTarget != null && (currentPbTime - ExternalTarget.DetectionReceivedTime) < targetUpdatedTimeoutSeeker)
+                    {
+                        LockType = MissileLockType.External;
+                        fallbackDirection = Vector3D.Normalize(ExternalTarget.LastKnownLocation - Position);
+                    }
                     ThrustUtils.SetThrustBasedDot(thrusters, fallbackDirection);
                     AimInDirection(fallbackDirection, currentPbTime);
                     return;
