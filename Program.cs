@@ -90,7 +90,7 @@ namespace IngameScript
         {
             Ini.AddSection(INISettingsHeader);
             Ini.Set(INISettingsHeader, "ScriptExcludeTag", "#ExMissileCtrl#");
-            Ini.Set(INISettingsHeader, "TextPanelIncludeTag", "#MissileCtrl#");
+            Ini.Set(INISettingsHeader, "ScriptIncludeTag", "#MissileCtrl#");
             Ini.Set(INISettingsHeader, "CockpitLCDSelection", 0);
             Ini.Set(INISettingsHeader, "ProximityDetonationDistance", 5);
             Ini.Set(INISettingsHeader, "ProximityArmingDistance", 25);
@@ -104,7 +104,7 @@ namespace IngameScript
 
             scriptExcludeTag = Ini.Get(INISettingsHeader, "ScriptExcludeTag").ToString();
             cockpitLCD = Ini.Get(INISettingsHeader, "CockpitLCDSelection").ToInt32();
-            scriptIncludeTag = Ini.Get(INISettingsHeader, "TextPanelIncludeTag").ToString();
+            scriptIncludeTag = Ini.Get(INISettingsHeader, "ScriptIncludeTag").ToString();
             proximityDetonationDistance = Ini.Get(INISettingsHeader, "ProximityDetonationDistance").ToDouble();
             proximityArmingDistance = Ini.Get(INISettingsHeader, "ProximityArmingDistance").ToDouble();
         }
