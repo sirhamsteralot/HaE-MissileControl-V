@@ -296,7 +296,8 @@ namespace IngameScript
                         double desiredDist = planetseaLevelRadius * CruisingHeight;
 
                         // 2) Great-circle tangent direction toward target
-                        Vector3D toTarget = Vector3D.Normalize(predictedExternalPosition - Position);
+                        Vector3D toTarget = predictedExternalPosition - Position;
+                        double targetAltitude = toTarget.Normalize();
                         Vector3D greatCircleDir = Vector3D.Normalize(Vector3D.Cross(Vector3D.Cross(radialDir, toTarget), radialDir));
                         Vector3D tangent = Vector3D.Normalize(greatCircleDir);
 
@@ -304,6 +305,9 @@ namespace IngameScript
                         double kP = 0.75;
                         Vector3D v_err = tangent * worldMaxSpeed - Velocity;
                         Vector3D a_tangent = v_err * kP;
+
+                        if (Vector3D.Dot(radialDir, toTarget) > 0.8)
+                            desiredDist = targetAltitude;
 
                         // 4) Gravity/centripetal compensation
                         //    If planetGravity is your local g‑pull (positive number), it points _inward_ so we need to negate it to push outward:
