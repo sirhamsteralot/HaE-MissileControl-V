@@ -127,9 +127,6 @@ namespace IngameScript
                         textPanel.CustomData.Contains(scriptIncludeTag))
                     {
                         textPanels.Add(textPanel);
-
-                        // TODO move to initialize
-                        ui.AddInformationSurface(textPanel);
                     }
 
                     return false;
@@ -147,9 +144,6 @@ namespace IngameScript
 
                 return false;
             });
-
-            // TODO move to initialize & make configurable
-            ui.AddInformationSurfaceBlock(mainCockpit, 0);
         }
 
         private void FetchMissileBlocks()
