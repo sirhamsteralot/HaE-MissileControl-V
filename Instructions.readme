@@ -1,32 +1,45 @@
-﻿R e a d m e
------------
+﻿## Instructions for HaE MissileControl V
+ver 1.0.0
 
-In this file you can include any instructions or other comments you want to have injected onto the 
-top of your final script. You can safely delete this file if you do not want any such comments.
+### Overview
 
+This project is a Space Engineers mod script designed to control and manage missiles on a ship. The script utilizes various blocks and components to detect, track, and launch missiles at targets. The script is written in C# and is intended to be run on a Programmable Block within Space Engineers.
 
+### Features
 
-# Design
+- **Entity Detection**: The script can ingress and track entities using the DLBus system.
+- **Missile Management**: Manages the launch and guidance of missiles.
+- **User Interface**: Provides a user interface on LCD panels to display information about launched missiles and selected targets.
+- **Configuration**: Allows configuration via custom data in the programmable block.
 
-Concept:
-This missile script will be used for medium - long range targets,
-received either directly through the network or for closer ranges through targeting modules on the missiles themselves.
+### Configuration
 
-Features it will need:
-- Efficient Cruise Ballistic trajectories for long ranges
-- Planet Circumnavigation (over the horizon functionality)
-- Bulldog/Final Targeting done by PNav using Internal Guidance if aquisition is possible
-- Target Data Ingress through DataLink network
-- Selecting Targets from DataLink Network
-- RefExploit Powered (sorry malware)
+The script can be configured using custom data in the Programmable Block. The configuration includes:
 
-UI:
-- Displaying selected Target Information
-- Updateing DataLink Network on currently Targeted Entity
-- Show possible states of lock internal/missile/external
-- Show state of missile in flight
-    - Lock Status
-    - Distance to Target
+- **Script Exclude Tag**: A tag to exclude blocks from being managed by the script.
+- **Text Panel Include Tag**: A tag to include text panels for displaying information.
+- **Cockpit LCD Selection**: The index of the LCD panel on the main cockpit to display information.
 
+### Usage
 
-Configuration:
+1. **Setup**: Place the script on a Programmable Block.
+2. **Configuration**: Edit the custom data of the Programmable Block to configure the script.
+3. **Run**: Run the script to start managing missiles.
+4. **Commands**: Use the following commands to control the script:
+   - `export`: Export the current configuration.
+   - `select`: Select the closest detected entity as the target.
+   - `deselect`: Deselect the current target.
+   - `launch`: Launch a missile at the selected target.
+   - `dumblaunch`: Launch a missile without a target.
+
+### Example Configuration
+
+[Settings]
+ScriptExcludeTag=#ExMissileCtrl#
+TextPanelIncludeTag=#MissileCtrl#
+CockpitLCDSelection=0
+
+### Notes
+
+- Ensure that all required blocks are tagged correctly for the script to function properly.
+- The script is designed to work within the Space Engineers game environment.

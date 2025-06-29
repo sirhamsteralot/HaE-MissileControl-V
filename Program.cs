@@ -22,8 +22,6 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        static string globalScreamValue = "";
-
         DLBus dlBus;
         DLBus.ObjectTrackingStore externalTrackingStore;
 
@@ -36,6 +34,8 @@ namespace IngameScript
         string scriptExcludeTag = "#ExMissileControlV#";
         string scriptIncludeTag = "#MissileControlV#";
         int cockpitLCD = 0;
+        double proximityDetonationDistance = 5;
+        double proximityArmingDistance = 25;
 
         List<IMyTextPanel> textPanels = new List<IMyTextPanel>();
         List<IMyFlightMovementBlock> movementBlocks = new List<IMyFlightMovementBlock>();
@@ -55,11 +55,12 @@ namespace IngameScript
         double averageRuntime = 0;
 
         DLBus.DLBusDetectedEntity currentlySelectedEntity = null;
+        IMyBroadcastListener missileControlArgumentListener;
 
 
         public Program()
         {
-            Runtime.UpdateFrequency = UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
+            Runtime.UpdateFrequency = UpdateFrequency.Update1 | UpdateFrequency.Update100;
 
             if (string.IsNullOrWhiteSpace(Me.CustomData))
                 ExportConfig();
@@ -91,6 +92,8 @@ namespace IngameScript
             Ini.Set(INISettingsHeader, "ScriptExcludeTag", "#ExMissileCtrl#");
             Ini.Set(INISettingsHeader, "TextPanelIncludeTag", "#MissileCtrl#");
             Ini.Set(INISettingsHeader, "CockpitLCDSelection", 0);
+            Ini.Set(INISettingsHeader, "ProximityDetonationDistance", 5);
+            Ini.Set(INISettingsHeader, "ProximityArmingDistance", 25);
 
             Me.CustomData = Ini.ToString();
         }
@@ -102,6 +105,8 @@ namespace IngameScript
             scriptExcludeTag = Ini.Get(INISettingsHeader, "ScriptExcludeTag").ToString();
             cockpitLCD = Ini.Get(INISettingsHeader, "CockpitLCDSelection").ToInt32();
             scriptIncludeTag = Ini.Get(INISettingsHeader, "TextPanelIncludeTag").ToString();
+            proximityDetonationDistance = Ini.Get(INISettingsHeader, "ProximityDetonationDistance").ToDouble();
+            proximityArmingDistance = Ini.Get(INISettingsHeader, "ProximityArmingDistance").ToDouble();
         }
         #endregion
 
@@ -239,7 +244,17 @@ namespace IngameScript
             if (externalTrackingStore == null)
                 externalTrackingStore = new DLBus.ObjectTrackingStore();
 
-            missileManager = new MissileManager(World.SmallShipMaxSpeed);
+            missileManager = new MissileManager(World.SmallShipMaxSpeed, proximityArmingDistance, proximityDetonationDistance);
+
+            foreach (var textPanel in textPanels)
+            {
+                ui.AddInformationSurface(textPanel);
+            }
+
+            if (mainCockpit != null)
+                ui.AddInformationSurfaceBlock(mainCockpit, cockpitLCD);
+                
+            missileControlArgumentListener = IGC.RegisterBroadcastListener(MISSILECONTROL_ARGUMENT_TOPIC);
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -256,11 +271,6 @@ namespace IngameScript
                 newDetectedEntitiesList.Clear();
 
                 scheduler.Main();
-            }
-
-            if ((updateSource & UpdateType.Update10) == UpdateType.Update10)
-            {
-                
             }
 
             if ((updateSource & UpdateType.Update100) == UpdateType.Update100)
@@ -296,11 +306,17 @@ namespace IngameScript
 
                 update100Counter++;
             }
+        }
 
-            if (!string.IsNullOrEmpty(globalScreamValue))
+        public void HandleIGCMessages()
+        {
+            while (missileControlArgumentListener.HasPendingMessage)
             {
-                Echo(globalScreamValue);
-                mainCockpit.CustomData = globalScreamValue;
+                var message = missileControlArgumentListener.AcceptMessage();
+
+                var argument = message.As<string>();
+
+                HandleUserArguments(argument);
             }
         }
 

@@ -30,10 +30,14 @@ namespace IngameScript
             private double planetGravity;
             private double worldMaxSpeed;
             private double planetSeaLevelRadius;
+            private double proximityDetonationDistance;
+            private double proximityArmingDistance;
 
-            public MissileManager(double worldMaxSpeed)
+            public MissileManager(double worldMaxSpeed, double proximityArmingDistance, double proximityDetonationDistance)
             {
                 this.worldMaxSpeed = worldMaxSpeed;
+                this.proximityArmingDistance = proximityArmingDistance;
+                this.proximityDetonationDistance = proximityDetonationDistance;
             }
 
             public IEnumerator<bool> LaunchMissile(
@@ -60,7 +64,7 @@ namespace IngameScript
 
                 yield return true;
 
-                Missile missile = new Missile(worldMaxSpeed);
+                Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance);
 
                 for (int i = gyros.Count - 1; i >= 0; i--)
                 {

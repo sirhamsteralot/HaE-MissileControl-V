@@ -41,9 +41,6 @@ namespace IngameScript
             private const double CruisingHeight = 1.15;
             private const long targetUpdatedTimeoutSeeker = 60 * 60;
 
-            private const double proximityDetonationDistance = 5;
-            private const double proximityArmingDistance = 25;
-
             public enum MissileHealth
             {
                 Unknown,
@@ -106,12 +103,16 @@ namespace IngameScript
             private PIDController pitchPID = new PIDController(15, 0.0, 0.1);
 
             private double worldMaxSpeed;
+            private double proximityDetonationDistance = 5;
+            private double proximityArmingDistance = 25;
 
-            public Missile(double worldMaxSpeed)
+            public Missile(double worldMaxSpeed, double proximityDetonationDistance, double proximityArmingDistance)
             {
                 this.worldMaxSpeed = worldMaxSpeed;
                 this.FlightState = MissileFlightState.Unknown;
                 this.Health = MissileHealth.Unknown;
+                this.proximityDetonationDistance = proximityDetonationDistance;
+                this.proximityArmingDistance = proximityArmingDistance;
             }
 
             public bool Initialize()
@@ -273,7 +274,6 @@ namespace IngameScript
                 {
                     LockType = MissileLockType.External;
 
-                    // Program.globalScreamValue = $"tgt: {ExternalTarget.EntityId}\nupdated: {ExternalTarget.DetectionReceivedTime}\npos: {ExternalTarget.LastKnownLocation}";
                     Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
                     double distanceSquared = distanceFromTarget.LengthSquared();
@@ -392,10 +392,6 @@ namespace IngameScript
                         // 7) Aim where you thrust
                         AimInDirection(thrustDir, currentPbTime);
 
-                        // Debug
-                        // Program.globalScreamValue =
-                        //     $"vT: {speedAlongTangent:F1}, aTan: {a_tangent.Length():F2}, aG: {a_gravity.Length():F2}";
-
                     }
                     else
                     {
@@ -473,8 +469,6 @@ namespace IngameScript
                 double dot = Vector3D.Dot(Forward, Vector3D.Normalize(accelCommand));
                 dot = MathHelper.Clamp(dot, -1.0, 1.0); // Clamp is critical for acos domain
                 double angleDegrees = MathHelper.ToDegrees(Math.Acos(dot));
-
-                // Program.globalScreamValue = $"commanded:{accelMag:N3}\ndeg:{angleDegrees}\nleftover: {leftoverAccel:N3}\ntotal: {accelCommand.Length():N3}\ndist: {targetDist:N2}\nclosest: {closestDist:N2}";
 
                 ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand)); // Changed from requiredAccelDir
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
