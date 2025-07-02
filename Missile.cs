@@ -29,9 +29,8 @@ namespace IngameScript
         {
 
             private const double maxForwardAccelCapability = 100;
-            private const double minimumP = 2.5;
-            private const double maximumP = 5;
-            private const double accelP = 1;
+            private const double minimumP = 3;
+            private const double maximumP = 6;
             private const double minimumClosingVel = -10;
 
             private const double maxPredictTime = 10;
@@ -277,7 +276,7 @@ namespace IngameScript
                 {
                     LockType = MissileLockType.External;
 
-                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity / 60);
+                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
                     double distanceSquared = distanceFromTarget.LengthSquared();
 
@@ -287,7 +286,7 @@ namespace IngameScript
                     if (OriginalLaunchDistance == 0)
                         OriginalLaunchDistance = CurrentTargetDistance;
 
-                    Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity;
+                    Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity * 60;
                     Vector3D roughTargetLocationPrediction = predictedExternalPosition * (closingVelocity.LengthSquared() / distanceSquared);
 
                     if (planetGravity > 1e-3 && distanceSquared > 2500 * 2500)
