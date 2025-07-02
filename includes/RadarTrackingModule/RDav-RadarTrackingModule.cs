@@ -37,18 +37,17 @@ namespace IngameScript
             struct TrackingPoint
             {
                 public readonly Vector3D Position;
-                public readonly double Timestamp;
-                public TrackingPoint(Vector3D position, double timestamp)
+                public readonly long TimestampTicks;
+                public TrackingPoint(Vector3D position, long timestamp)
                 {
                     this.Position = position;
-                    this.Timestamp = timestamp;
+                    this.TimestampTicks = timestamp;
                 }
             }
 
             //Keeps Record Of The Flight Module
             IMyFlightMovementBlock L_FlightBlock;
             IMyOffensiveCombatBlock L_CombatBLock;
-            public bool BoostMode = false;
 
             // Store last two (position, timestamp) entries 
             TrackingPoint p1;
@@ -102,10 +101,10 @@ namespace IngameScript
                     return;
 
                 if (CurrentTick > ForcedRefreshRate)
-                    {
-                        L_CombatBLock.Enabled = false;
-                        L_CombatBLock.Enabled = true;
-                    }
+                {
+                    L_CombatBLock.Enabled = false;
+                    L_CombatBLock.Enabled = true;
+                }
 
                 //Updates Time
                 CurrentTime = CurrentPBTime_Ticks;
@@ -117,7 +116,7 @@ namespace IngameScript
                 if (currentWaypoint != null)
                 {
                     //NB this can be up to 2 ticks out of date due to the asynch update of this
-                    var positionwaypoint = currentWaypoint.Matrix.GetRow(3);
+                    var positionwaypoint = currentWaypoint.Matrix.Translation;
                     Vector3D TargetPosition = new Vector3D(positionwaypoint.X, positionwaypoint.Y, positionwaypoint.Z);
 
                     //Need To Use This As Otherwise Gives False Data
@@ -139,48 +138,42 @@ namespace IngameScript
             }
 
             /// <summary>
-            /// Gets the most recent velocity vector.
+            /// Gets the most recent velocity vector. PER TICK
             /// </summary>
-            public Vector3D TargetVelocity
+            private Vector3D GetTargetVelocityPerTick()
             {
-                get
-                {
-                    // Extract position and time from the stored tracking points
-                    Vector3D pos1 = p1.Position;
-                    double time1 = p1.Timestamp;
+                // Extract position and time from the stored tracking points
+                Vector3D pos1 = p1.Position;
+                long time1 = p1.TimestampTicks;
 
-                    Vector3D pos0 = p0.Position;
-                    double time0 = p0.Timestamp;
+                Vector3D pos0 = p0.Position;
+                long time0 = p0.TimestampTicks;
 
-                    //Calculates protecting against zero time errors (would give NaN)
-                    double dt = time0 - time1;
-                    if (dt <= 0) return Vector3D.Zero;
+                //Calculates protecting against zero time errors (would give NaN)
+                long dt = time0 - time1;
+                if (dt <= 0) return Vector3D.Zero;
 
-                    //Returns
-                    return (pos0 - pos1) / (double)dt;
-                }
+                //Returns
+                return (pos0 - pos1) / (double)dt;
             }
 
             /// <summary>
             /// Predicts the target's position using current velocity and acceleration.
             /// </summary>
-            public Vector3D TargetPosition
+            public Vector3D GetTargetPosition(out Vector3D velocityPerTick)
             {
-                get
-                {
-                    // Extracts Current Position
-                    Vector3D lastPosition = p0.Position;
-                    double lastTime = p0.Timestamp;
+                // Extracts Current Position
+                Vector3D lastPosition = p0.Position;
+                long lastTime = p0.TimestampTicks;
 
-                    //Gets V and A
-                    Vector3D velocity = TargetVelocity;
+                //Gets V and A
+                velocityPerTick = GetTargetVelocityPerTick();
 
-                    //Timestep
-                    double dt = (double)(CurrentTime - lastTime);
+                //Timestep
+                long dt = CurrentTime - lastTime;
 
-                    //S1 = S0 + UT + 0.5AT^2 (simple suvat equation)
-                    return lastPosition + velocity * dt; //found is more stable withoput acceleration term, as its 1.6s of error
-                }
+                //S1 = S0 + UT + 0.5AT^2 (simple suvat equation)
+                return lastPosition + velocityPerTick * dt; //found is more stable withoput acceleration term, as its 1.6s of error
             }
 
             //----------------------------------------------------------------------------
@@ -197,23 +190,6 @@ namespace IngameScript
             }
 
             /// <summary>
-            /// Tells You Tracked Object Name
-            /// </summary>
-            public string TrackedObjectName
-            {
-                get
-                {
-                    //this is 
-                    string detailedInfo = L_CombatBLock.DetailedInfo;
-
-                    // Split by new lines
-                    var lines = detailedInfo.Split('\n');
-
-                    return lines[0];
-                }
-            }
-
-            /// <summary>
             /// Checks State Of Blocks Internal
             /// </summary>
             public bool CheckWorking()
@@ -224,22 +200,6 @@ namespace IngameScript
                 {return false; }
 
                 return true;
-            }
-
-            /// <summary>
-            /// Tells You What Is Setup For Line 1 (largest, smallest, closest)
-            /// </summary>
-            public string GetLine1Info()
-            {
-                return L_CombatBLock.TargetPriority + ""; 
-            }
-
-            /// <summary>
-            /// Tells You What Is Setup For Line 2 (weapons, thrusters etc)
-            /// </summary>
-            public string GetLine2Info()
-            {
-                return L_CombatBLock.SearchEnemyComponent.SubsystemsToDestroy + "";
             }
 
             //----------------------------------------------------------------------------

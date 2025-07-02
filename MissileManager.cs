@@ -32,9 +32,11 @@ namespace IngameScript
             private double planetSeaLevelRadius;
             private double proximityDetonationDistance;
             private double proximityArmingDistance;
+            private DebugAPI debug;
 
-            public MissileManager(double worldMaxSpeed, double proximityArmingDistance, double proximityDetonationDistance)
+            public MissileManager(double worldMaxSpeed, double proximityArmingDistance, double proximityDetonationDistance, DebugAPI debug)
             {
+                this.debug = debug;
                 this.worldMaxSpeed = worldMaxSpeed;
                 this.proximityArmingDistance = proximityArmingDistance;
                 this.proximityDetonationDistance = proximityDetonationDistance;
@@ -64,7 +66,7 @@ namespace IngameScript
 
                 yield return true;
 
-                Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance);
+                Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance, debug);
 
                 for (int i = gyros.Count - 1; i >= 0; i--)
                 {
@@ -166,9 +168,10 @@ namespace IngameScript
                         {
                             launchedMissiles[i].Flight(currentPbTime);
                         }
-                        catch (Exception)
+                        catch (Exception e)
                         {
                             launchedMissiles.RemoveAt(i);
+                            throw e;
                         }
                     }
                     else

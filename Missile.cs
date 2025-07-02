@@ -29,7 +29,7 @@ namespace IngameScript
         {
 
             private const double maxForwardAccelCapability = 100;
-            private const double minimumP = 3.5;
+            private const double minimumP = 2.5;
             private const double maximumP = 5;
             private const double accelP = 1;
             private const double minimumClosingVel = -10;
@@ -106,8 +106,11 @@ namespace IngameScript
             private double proximityDetonationDistance = 5;
             private double proximityArmingDistance = 25;
 
-            public Missile(double worldMaxSpeed, double proximityDetonationDistance, double proximityArmingDistance)
+            private DebugAPI debug;
+
+            public Missile(double worldMaxSpeed, double proximityDetonationDistance, double proximityArmingDistance, DebugAPI debug)
             {
+                this.debug = debug;
                 this.worldMaxSpeed = worldMaxSpeed;
                 this.FlightState = MissileFlightState.Unknown;
                 this.Health = MissileHealth.Unknown;
@@ -418,7 +421,6 @@ namespace IngameScript
 
             Vector3D targetPos;
             Vector3D targetVel;
-            Vector3D targetAcc;
 
             double closestDist = 5000;
             private void FlightTerminal(long currentPbTime)
@@ -441,18 +443,21 @@ namespace IngameScript
                     return;
                 }
 
-                targetPos = radarTrackingModule.TargetPosition;
-                targetAcc = Vector3D.Lerp(radarTrackingModule.TargetVelocity - targetVel, targetAcc, 0.5);
-                targetVel = radarTrackingModule.TargetVelocity;
+                targetPos = radarTrackingModule.GetTargetPosition(out targetVel);
+                targetVel *= 60;
 
+                if (Program.DEBUG_VERSION)
+                {
+                    debug.DrawPoint(targetPos, Color.Red, seconds: 1, onTop:true);
+                    debug.DrawLine(targetPos, targetPos + targetVel, Color.Orange, seconds: 1, onTop:true);
+                }
 
                 UpdateRadarRefreshRate(Vector3D.Distance(targetPos, Position));
 
                 Vector3D gravitydirection = planetCenterPos - Position;
                 double altitude = gravitydirection.Normalize();
 
-
-                Vector3D accelCommand = ComputeGuidanceAccel(targetPos, targetVel, targetAcc, Position, Velocity, DeltaTime) - gravitydirection * planetGravity;
+                Vector3D accelCommand = ComputeGuidanceAccel(targetPos, targetVel, Position, Velocity, DeltaTime) - gravitydirection * planetGravity;
                 double accelMag = Math.Min(accelCommand.Normalize(), maxForwardAccelCapability - 10);
                 double leftoverAccel = Math.Max(10, maxForwardAccelCapability - accelMag);
 
@@ -513,7 +518,6 @@ namespace IngameScript
             private Vector3D ComputeGuidanceAccel(
                 Vector3D targetPos,
                 Vector3D targetVel,
-                Vector3D targetAccel, // estimated or calculated externally
                 Vector3D missilePos,
                 Vector3D missileVel,
                 double deltaTime
@@ -536,13 +540,11 @@ namespace IngameScript
                 Vector3D los = relPos / distance;
                 double closingVel = -Vector3D.Dot(newRelVel, los);
 
-                Vector3D targetAccelPerp = targetAccel - los * Vector3D.Dot(targetAccel, los);
-
                 if (closingVel < minimumClosingVel)
                 {
                     Vector3D losDir = Vector3D.Normalize(los);
 
-                    return Vector3D.Lerp(-targetAccelPerp, losDir, 0.5);
+                    return Vector3D.Lerp(-targetVel, losDir, 0.5);
                 }
 
                 Vector3D losRate = (distance > 1e-4)
@@ -554,7 +556,7 @@ namespace IngameScript
 
                 Vector3D pnAccel = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
 
-                Vector3D accelCmd = pnAccel + targetAccelPerp * accelP;
+                Vector3D accelCmd = pnAccel;
 
                 // Clamp to max acceleration
                 double accelMagSq = accelCmd.LengthSquared();

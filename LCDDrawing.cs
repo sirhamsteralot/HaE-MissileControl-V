@@ -51,12 +51,14 @@ namespace IngameScript
             public void AddInformationSurfaceBlock(IMyCockpit cockpit, int surfaceId)
             {
                 var textSurface = cockpit.GetSurface(surfaceId);
-
-                textSurface.ContentType = ContentType.SCRIPT;
-                textSurface.Script = "";
-                textSurface.ScriptBackgroundColor = Color.Black;
-                cockpitSurfaces.Add(cockpit);
-                cockpitSurfaceConfiguration.Add(surfaceId);
+                if (textSurface != null)
+                {
+                    textSurface.ContentType = ContentType.SCRIPT;
+                    textSurface.Script = "";
+                    textSurface.ScriptBackgroundColor = Color.Black;
+                    cockpitSurfaces.Add(cockpit);
+                    cockpitSurfaceConfiguration.Add(surfaceId);
+                }
             }
 
             public void UpdateLaunchedMissiles(ICollection<Missile> missiles)

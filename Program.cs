@@ -22,6 +22,7 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
+        DebugAPI debug;
         DLBus dlBus;
         DLBus.ObjectTrackingStore externalTrackingStore;
 
@@ -60,6 +61,9 @@ namespace IngameScript
 
         public Program()
         {
+            if (DEBUG_VERSION)
+                debug = new DebugAPI(this);
+
             Runtime.UpdateFrequency = UpdateFrequency.Update1 | UpdateFrequency.Update100;
 
             if (string.IsNullOrWhiteSpace(Me.CustomData))
@@ -238,7 +242,7 @@ namespace IngameScript
             if (externalTrackingStore == null)
                 externalTrackingStore = new DLBus.ObjectTrackingStore();
 
-            missileManager = new MissileManager(World.SmallShipMaxSpeed, proximityArmingDistance, proximityDetonationDistance);
+            missileManager = new MissileManager(World.SmallShipMaxSpeed, proximityArmingDistance, proximityDetonationDistance, debug);
 
             foreach (var textPanel in textPanels)
             {
@@ -270,6 +274,8 @@ namespace IngameScript
             if ((updateSource & UpdateType.Update100) == UpdateType.Update100)
             {
                 Echo($"IAI MissileControl V {versionString}");
+                if (DEBUG_VERSION)
+                    Echo("DEBUG ENABLED!");
                 Echo(runningIndicator[update100Counter % runningIndicator.Length]);
                 Echo($"runtime average: {averageRuntime:N4}");
 
