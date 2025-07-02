@@ -171,7 +171,8 @@ namespace IngameScript
                         catch (Exception e)
                         {
                             launchedMissiles.RemoveAt(i);
-                            throw e;
+                            if (DEBUG_VERSION)
+                                throw e;
                         }
                     }
                     else
