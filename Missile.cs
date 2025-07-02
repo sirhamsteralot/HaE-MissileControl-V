@@ -29,12 +29,10 @@ namespace IngameScript
         {
 
             private const double maxForwardAccelCapability = 100;
-            private const double minimumP = 3;
-            private const double maximumP = 6;
+            private const double minimumP = 5;
+            private const double maximumP = 15;
             private const double minimumClosingVel = -10;
 
-            private const double maxPredictTime = 10;
-            private const double maxAccelPredictTime = 2;
             private const double DeltaTime = 1.0 / 60.0;
 
             private const double CruisingHeight = 1.15;
@@ -270,6 +268,7 @@ namespace IngameScript
                 }
             }
 
+            Vector3D previousAccel;
             private void FlightCruising(long currentPbTime)
             {
                 if (ExternalTarget != null)
@@ -292,9 +291,9 @@ namespace IngameScript
                     if (planetGravity > 1e-3 && distanceSquared > 2500 * 2500)
                     {
                         // 1) Radial basis
-                        Vector3D toCenter    = planetCenterPos - Position;
-                        double   currentDist = toCenter.Length();
-                        Vector3D radialDir   = Vector3D.Normalize(toCenter);
+                        Vector3D toCenter = planetCenterPos - Position;
+                        double currentDist = toCenter.Length();
+                        Vector3D radialDir = Vector3D.Normalize(toCenter);
                         double desiredDist = planetseaLevelRadius * CruisingHeight;
 
                         // 2) Great-circle tangent direction toward target
@@ -316,11 +315,11 @@ namespace IngameScript
 
                         // 4) Gravity/centripetal compensation
                         //    If planetGravity is your local g‑pull (positive number), it points _inward_ so we need to negate it to push outward:
-                        Vector3D a_gravity = - radialDir * (planetGravity + (desiredDist - currentDist));
+                        Vector3D a_gravity = -radialDir * (planetGravity + (desiredDist - currentDist));
 
                         // 5) Total accel, smooth, normalize for thrust direction
                         Vector3D accelUnsmoothed = a_tangent + a_gravity;
-                        Vector3D accelCommand    = Vector3D.Lerp(previousAccel, accelUnsmoothed, 0.3);
+                        Vector3D accelCommand = Vector3D.Lerp(previousAccel, accelUnsmoothed, 0.3);
                         previousAccel = accelCommand;
 
                         Vector3D thrustDir = Vector3D.Normalize(accelCommand);
@@ -478,12 +477,21 @@ namespace IngameScript
 
                 accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
                 Vector3D lookCommand = accelCommand;
+                Vector3D accelDir = Vector3D.Normalize(accelCommand);
 
-                double dot = Vector3D.Dot(Forward, Vector3D.Normalize(accelCommand));
+                double dot = Vector3D.Dot(Forward, accelDir);
                 dot = MathHelper.Clamp(dot, -1.0, 1.0); // Clamp is critical for acos domain
                 double angleDegrees = MathHelper.ToDegrees(Math.Acos(dot));
 
-                ThrustUtils.SetThrustBasedDot(thrusters, Vector3D.Normalize(accelCommand)); // Changed from requiredAccelDir
+                if (Velocity.LengthSquared() > (worldMaxSpeed - 1) * (worldMaxSpeed - 1) && Velocity.Dot(accelDir) > 0.99)
+                {
+                    ThrustUtils.SetThrustPercentage(thrusters, 0f);
+                }
+                else
+                {
+                    ThrustUtils.SetThrustBasedDot(thrusters, accelDir);
+                }
+
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
             }
 
@@ -512,7 +520,6 @@ namespace IngameScript
                 }
             }
 
-            Vector3D previousAccel;
 
             private Vector3D ComputeGuidanceAccel(
                 Vector3D targetPos,
@@ -526,12 +533,6 @@ namespace IngameScript
                 Vector3D relPos = targetPos - missilePos;
                 Vector3D relVel = targetVel - missileVel;
                 double distance = relPos.Length();
-                double relSpeed = relVel.Length();
-
-                // Avoid divide-by-zero and negative relative speeds
-                double timeToIntercept = (relSpeed > 1e-2) ? distance / relSpeed : 0.0;
-                double predictionTime = Math.Min(timeToIntercept, maxPredictTime);
-
 
                 if (distance < 1e-4) return Vector3D.Zero; // avoid instability
 
@@ -553,9 +554,7 @@ namespace IngameScript
                 // Adaptive navigation constant
                 double navigationConstant = MathHelper.Lerp(minimumP, maximumP, MathHelper.Clamp(distance / 2000.0, 0, 1));
 
-                Vector3D pnAccel = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
-
-                Vector3D accelCmd = pnAccel;
+                Vector3D accelCmd = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
 
                 // Clamp to max acceleration
                 double accelMagSq = accelCmd.LengthSquared();
@@ -563,8 +562,6 @@ namespace IngameScript
                 {
                     accelCmd = Vector3D.Normalize(accelCmd) * maxForwardAccelCapability;
                 }
-
-                previousAccel = accelCmd;
 
                 return accelCmd;
             }
