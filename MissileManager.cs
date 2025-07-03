@@ -55,16 +55,25 @@ namespace IngameScript
                 List<IMyShipConnector> connectors,
                 DLBus.DLBusDetectedEntity target = null)
             {
+                double missileWeight = 0;
+
+                var cockpit = referenceBlock as IMyShipController;
+                if (cockpit != null)
+                    missileWeight = cockpit.CalculateShipMass().PhysicalMass;
+
                 foreach (var mergeBlock in mergeBlocks)
-                {
-                    if (mergeBlock.IsConnected && mergeBlock.Enabled)
                     {
-                        mergeBlock.Enabled = false;
-                        break;
+                        if (mergeBlock.IsConnected && mergeBlock.Enabled)
+                        {
+                            mergeBlock.Enabled = false;
+                            break;
+                        }
                     }
-                }
 
                 yield return true;
+
+                if (cockpit != null)
+                    missileWeight -= cockpit.CalculateShipMass().PhysicalMass;
 
                 Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance, debug);
 
@@ -141,7 +150,7 @@ namespace IngameScript
                 }
 
                 yield return true;
-                missile.Initialize();
+                missile.Initialize(missileWeight);
                 
 
                 if (planetGravity > 0)

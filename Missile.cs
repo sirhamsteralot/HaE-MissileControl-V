@@ -28,8 +28,8 @@ namespace IngameScript
         public class Missile
         {
 
-            private const double maxForwardAccelCapability = 100;
-            private const double minimumP = 5;
+            private double maxForwardAccelCapability = 100;
+            private const double minimumP = 4;
             private const double maximumP = 15;
             private const double minimumClosingVel = -10;
 
@@ -112,7 +112,7 @@ namespace IngameScript
                 this.proximityArmingDistance = proximityArmingDistance;
             }
 
-            public bool Initialize()
+            public bool Initialize(double missileMass = 0)
             {
                 if (flightMovementBlock != null && offensiveCombatBlock != null)
                 {
@@ -152,6 +152,12 @@ namespace IngameScript
 
                 UpdateMissileHealth();
                 majorityThrustDirectionLocal = GetMajorityThrustDirectionLocal(thrusters);
+
+                if (missileMass != 0)
+                {
+                    double thrustAmount = ThrustUtils.GetForwardThrust(thrusters, Forward);
+                    maxForwardAccelCapability = thrustAmount / missileMass;
+                }
 
                 if (Health == MissileHealth.Healthy || Health == MissileHealth.Degraded)
                 {
