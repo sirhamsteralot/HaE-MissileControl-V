@@ -75,7 +75,6 @@ namespace IngameScript
             public MissileHealth Health { get; private set; }
             public MissileLockType LockType { get; private set; }
             public double FuelRemainingFraction { get; private set; }
-            public long GridEntityId => thrusters?.FirstOrDefault()?.CubeGrid.EntityId ?? 0;
             public long lifeTimeCounter { get; private set; }
             public double OriginalLaunchDistance;
             public double CurrentTargetDistance;
