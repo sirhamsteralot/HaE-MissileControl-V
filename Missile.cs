@@ -80,8 +80,6 @@ namespace IngameScript
             public double OriginalLaunchDistance;
             public double CurrentTargetDistance;
 
-
-            private long lastPositionVelocityUpdateTime = 0;
             public Vector3D Position { get; private set; }
             public Vector3D Velocity { get; private set; }
             public Vector3D Forward => GetForward();
@@ -683,23 +681,15 @@ namespace IngameScript
 
             private void UpdateVelocityPosition(long currentPbTime)
             {
-                Vector3D currentPosition = Vector3D.Zero;
-
                 foreach (var gyro in gyros)
                 {
                     if (gyro.IsFunctional)
                     {
-                        currentPosition = gyro.GetPosition();
+                        Position = gyro.CubeGrid.GetPosition();
+                        Velocity = gyro.CubeGrid.LinearVelocity;
+                        break;
                     }
                 }
-
-                long timeDifference = currentPbTime - lastPositionVelocityUpdateTime;
-
-                Vector3D velocity = (currentPosition - Position) / timeDifference * 60;
-
-                Position = currentPosition;
-                Velocity = velocity;
-                lastPositionVelocityUpdateTime = currentPbTime;
             }
 
             private Vector3D GetForward()
