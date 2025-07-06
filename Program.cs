@@ -37,6 +37,8 @@ namespace IngameScript
         int cockpitLCD = 0;
         double proximityDetonationDistance = 5;
         double proximityArmingDistance = 25;
+        double minimumPGain = 4;
+        double maximumPGain = 15;
 
         List<IMyTextPanel> textPanels = new List<IMyTextPanel>();
         List<IMyFlightMovementBlock> movementBlocks = new List<IMyFlightMovementBlock>();

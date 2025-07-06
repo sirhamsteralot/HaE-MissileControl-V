@@ -29,11 +29,12 @@ namespace IngameScript
         {
 
             private double maxForwardAccelCapability = 100;
-            private const double minimumP = 4;
-            private const double maximumP = 15;
+            private double minimumP = 3;
+            private double maximumP = 10;
             private const double minimumClosingVel = -10;
 
             private const double DeltaTime = 1.0 / 60.0;
+            private const double predictionTimeCap = 30;
 
             private const double CruisingHeight = 1.15;
             private const long targetUpdatedTimeoutSeeker = 60 * 60;
@@ -93,8 +94,8 @@ namespace IngameScript
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
 
-            private PIDController yawPID = new PIDController(15, 0.0, 0.1);
-            private PIDController pitchPID = new PIDController(15, 0.0, 0.1);
+            private PIDController yawPID = new PIDController(10, 0.0, 0.2);
+            private PIDController pitchPID = new PIDController(10, 0.0, 0.2);
 
             private double worldMaxSpeed;
             private double proximityDetonationDistance = 5;
@@ -449,8 +450,8 @@ namespace IngameScript
 
                 if (Program.DEBUG_VERSION)
                 {
-                    debug.DrawPoint(targetPos, Color.Red, seconds: 1, onTop:true);
-                    debug.DrawLine(targetPos, targetPos + targetVel, Color.Orange, seconds: 1, onTop:true);
+                    debug.DrawPoint(targetPos, Color.Red, seconds: 1, onTop: true);
+                    debug.DrawLine(targetPos, targetPos + targetVel, Color.Orange, seconds: 1, onTop: true);
                 }
 
                 UpdateRadarRefreshRate(Vector3D.Distance(targetPos, Position));
@@ -464,6 +465,11 @@ namespace IngameScript
 
                 Vector3D targetDir = targetPos - Position;
                 double targetDist = targetDir.Normalize();
+                double closingVelocity = -Vector3D.Dot(targetVel - Velocity, targetDir);
+                double timeToTarget = Math.Min(predictionTimeCap, Math.Abs(targetDist / closingVelocity));
+
+                Vector3D predictedPos = targetPos + targetVel * timeToTarget;
+                Vector3D predictedDir = Vector3D.Normalize(predictedPos - Position);
 
                 CurrentTargetDistance = targetDist;
                 if (targetDist < closestDist)
@@ -478,7 +484,14 @@ namespace IngameScript
                     Arm();
                 }
 
-                accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
+                if (closingVelocity > 25 && targetDist > 100)
+                {
+                    accelCommand = (accelCommand * accelMag) + (predictedDir * leftoverAccel);
+                }
+                else
+                {
+                    accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
+                }
                 Vector3D lookCommand = accelCommand;
                 Vector3D accelDir = Vector3D.Normalize(accelCommand);
 
@@ -496,6 +509,11 @@ namespace IngameScript
                 }
 
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
+
+                if (debug != null)
+                {
+                    debug.PrintChat($"dist: {targetDist:N2} relVel: {closingVelocity:N2} TTT: {timeToTarget:N2}");
+                }
             }
 
             private void Arm()
