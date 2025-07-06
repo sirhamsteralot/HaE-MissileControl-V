@@ -160,6 +160,7 @@ namespace IngameScript
             thrusters.Clear();
             gasTanks.Clear();
             batteries.Clear();
+            warheads.Clear();
 
             GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, x =>
             {
@@ -180,6 +181,13 @@ namespace IngameScript
                 if (combatBlock != null)
                 {
                     combatBlocks.Add(combatBlock);
+                    return false;
+                }
+
+                var warhead = x as IMyWarhead;
+                if (warhead != null)
+                {
+                    warheads.Add(warhead);
                     return false;
                 }
 
