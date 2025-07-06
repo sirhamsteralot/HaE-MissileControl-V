@@ -499,14 +499,7 @@ namespace IngameScript
                 dot = MathHelper.Clamp(dot, -1.0, 1.0); // Clamp is critical for acos domain
                 double angleDegrees = MathHelper.ToDegrees(Math.Acos(dot));
 
-                if (Velocity.LengthSquared() > (worldMaxSpeed - 1) * (worldMaxSpeed - 1) && Velocity.Dot(accelDir) > 0.99)
-                {
-                    ThrustUtils.SetThrustPercentage(thrusters, 0f);
-                }
-                else
-                {
-                    ThrustUtils.SetThrustBasedDot(thrusters, accelDir);
-                }
+                ThrustUtils.SetThrustBasedDot(thrusters, accelDir);
 
                 AimInDirection(Vector3D.Normalize(lookCommand), currentPbTime); // Changed from requiredAccelDir
 
