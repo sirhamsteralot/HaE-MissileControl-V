@@ -30,7 +30,7 @@ namespace IngameScript
 
             private double maxForwardAccelCapability = 100;
             private double minimumP = 3;
-            private double maximumP = 10;
+            private double maximumP = 5;
             private const double minimumClosingVel = -10;
 
             private const double DeltaTime = 1.0 / 60.0;
@@ -454,7 +454,7 @@ namespace IngameScript
                     debug.DrawLine(targetPos, targetPos + targetVel, Color.Orange, seconds: 1, onTop: true);
                 }
 
-                UpdateRadarRefreshRate(Vector3D.Distance(targetPos, Position));
+                UpdateRadarRefreshRate(Vector3D.DistanceSquared(targetPos, Position));
 
                 Vector3D gravitydirection = planetCenterPos - Position;
                 double altitude = gravitydirection.Normalize();
@@ -466,7 +466,7 @@ namespace IngameScript
                 Vector3D targetDir = targetPos - Position;
                 double targetDist = targetDir.Normalize();
                 double closingVelocity = -Vector3D.Dot(targetVel - Velocity, targetDir);
-                double timeToTarget = Math.Min(predictionTimeCap, Math.Abs(targetDist / closingVelocity));
+                double timeToTarget = Math.Min(predictionTimeCap, Math.Max(0.1, targetDist / closingVelocity));
 
                 Vector3D predictedPos = targetPos + targetVel * timeToTarget;
                 Vector3D predictedDir = Vector3D.Normalize(predictedPos - Position);
@@ -484,20 +484,19 @@ namespace IngameScript
                     Arm();
                 }
 
-                if (closingVelocity > 25 && targetDist > 100)
-                {
-                    accelCommand = (accelCommand * accelMag) + (predictedDir * leftoverAccel);
-                }
-                else
-                {
-                    accelCommand = (accelCommand * accelMag) + (targetDir * leftoverAccel);
-                }
+
+                accelCommand = (accelCommand * accelMag) + (predictedDir * leftoverAccel);
                 Vector3D lookCommand = accelCommand;
                 Vector3D accelDir = Vector3D.Normalize(accelCommand);
 
                 double dot = Vector3D.Dot(Forward, accelDir);
                 dot = MathHelper.Clamp(dot, -1.0, 1.0); // Clamp is critical for acos domain
                 double angleDegrees = MathHelper.ToDegrees(Math.Acos(dot));
+
+                if (Vector3D.Dot(predictedDir, Vector3D.Normalize(Velocity)) < 0.2)
+                {
+                    accelDir = predictedDir;
+                }
 
                 ThrustUtils.SetThrustBasedDot(thrusters, accelDir);
 
@@ -554,13 +553,6 @@ namespace IngameScript
                 Vector3D los = relPos / distance;
                 double closingVel = -Vector3D.Dot(newRelVel, los);
 
-                if (closingVel < minimumClosingVel)
-                {
-                    Vector3D losDir = Vector3D.Normalize(los);
-
-                    return Vector3D.Lerp(-targetVel, losDir, 0.5);
-                }
-
                 Vector3D losRate = (distance > 1e-4)
                     ? Vector3D.Cross(relPos, newRelVel) / (distance * distance)
                     : Vector3D.Zero;
@@ -569,13 +561,6 @@ namespace IngameScript
                 double navigationConstant = MathHelper.Lerp(minimumP, maximumP, MathHelper.Clamp(distance / 2000.0, 0, 1));
 
                 Vector3D accelCmd = navigationConstant * closingVel * Vector3D.Cross(losRate, los);
-
-                // Clamp to max acceleration
-                double accelMagSq = accelCmd.LengthSquared();
-                if (accelMagSq > maxForwardAccelCapability * maxForwardAccelCapability)
-                {
-                    accelCmd = Vector3D.Normalize(accelCmd) * maxForwardAccelCapability;
-                }
 
                 return accelCmd;
             }
