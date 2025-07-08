@@ -94,8 +94,8 @@ namespace IngameScript
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
 
-            private PIDController yawPID = new PIDController(10, 0.0, 0.2);
-            private PIDController pitchPID = new PIDController(10, 0.0, 0.2);
+            private PIDController yawPID = new PIDController(15, 0.0, 0.2);
+            private PIDController pitchPID = new PIDController(15, 0.0, 0.2);
 
             private double worldMaxSpeed;
             private double proximityDetonationDistance = 5;
