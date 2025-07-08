@@ -128,6 +128,16 @@ namespace IngameScript
                 return Math.Acos(MathHelper.Clamp(One.Dot(Two) / Math.Sqrt(One.LengthSquared() * Two.LengthSquared()), -1, 1));
             }
 
+            public static double SignedAngle(Vector3D from, Vector3D to, Vector3D axis)
+            {
+                from = Vector3D.Normalize(from);
+                to = Vector3D.Normalize(to);
+                double angle = Math.Acos(MathHelper.Clamp(Vector3D.Dot(from, to), -1.0, 1.0));
+                double sign = Math.Sign(Vector3D.Dot(axis, Vector3D.Cross(from, to)));
+                return angle * sign;
+            }
+
+
             public static Vector3D TransformPosLocalToWorld(MatrixD worldMatrix, Vector3D localPosition)
             {
                 return Vector3D.Transform(localPosition, worldMatrix);

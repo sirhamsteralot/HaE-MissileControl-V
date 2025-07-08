@@ -94,8 +94,8 @@ namespace IngameScript
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
 
-            private PIDController yawPID = new PIDController(15, 0.0, 0.2);
-            private PIDController pitchPID = new PIDController(15, 0.0, 0.2);
+            private PIDController yawPID = new PIDController(6, 0.0, 0.0);
+            private PIDController pitchPID = new PIDController(6, 0.0, 0.0);
 
             private double worldMaxSpeed;
             private double proximityDetonationDistance = 5;
@@ -747,98 +747,31 @@ namespace IngameScript
                 return majorityDirection;
             }
 
-
-
-            Vector3D previousDirection;
             private void AimInDirection(Vector3D aimDirection, long currentPbTime)
             {
-                if (thrustDirectionReference == null || !thrustDirectionReference.IsFunctional)
+                if (flightMovementBlock == null || !flightMovementBlock.IsFunctional)
                     return;
 
-                var refMatrix = thrustDirectionReference.WorldMatrix;
+                var refMatrix = flightMovementBlock.WorldMatrix;
                 double t = currentPbTime * DeltaTime;
-                if (t <= 0) t = 1.0 / 60.0;
+                Vector3D forward = refMatrix.Forward;
+                Vector3D up = refMatrix.Up;
+                Vector3D left = refMatrix.Left;
 
-                // estimate rotation from last frame
-                double cosAng = MathHelper.Clamp(Vector3D.Dot(previousDirection, refMatrix.Forward), -1, 1);
-                double angle  = Math.Acos(cosAng);
-                Vector3D axis = Vector3D.Cross(previousDirection, refMatrix.Forward);
-                axis = axis.LengthSquared() > 1e-6 ? Vector3D.Normalize(axis) : Vector3D.Zero;
-                double angVelMag = angle / t;
-                double localYawRate   = Vector3D.Dot(axis, refMatrix.Up)    * angVelMag;
-                double localPitchRate = Vector3D.Dot(axis, refMatrix.Right) * angVelMag;
+                if (debug != null)
+                    debug.DrawLine(refMatrix.Translation, refMatrix.Translation + aimDirection * 10, Color.LimeGreen, seconds: 0.1f);
 
-                // compute errors
-                double yawError, pitchError;
-                DirectionToPitchYaw(
-                    refMatrix.Forward, refMatrix.Right, refMatrix.Up,
-                    Vector3D.Normalize(aimDirection),
-                    out yawError, out pitchError
-                );
+                Vector3D PitchVector = Vector3D.Normalize(VectorUtils.ProjectOnPlane(left, aimDirection));
+                Vector3D YawVector = Vector3D.Normalize(VectorUtils.ProjectOnPlane(up, aimDirection));
 
-                // — Feed-forward (optional; here desired rate = 0)
-                const double feedFwdGain = 0.2;
-                double ffYaw   = - localYawRate   * feedFwdGain;
-                double ffPitch = - localPitchRate * feedFwdGain;
+                double pitchAngle = VectorUtils.SignedAngle(PitchVector, forward, left);
+                double yawAngle = VectorUtils.SignedAngle(YawVector, forward, up);
 
-                // — adaptive damping params
-                const double dampBase  = 0.2;
-                const double dampSlope = 1.0;
-                const double maxRate   = 5.0;      // cap for slope
-                double rateCap = Math.Min(angVelMag, maxRate);
-                double adaptiveDamp = dampBase + dampSlope * rateCap;
+                double pitchInput = pitchPID.Compute(pitchAngle, t);
+                double yawInput = yawPID.Compute(yawAngle, t);
 
-                // — continuous blend based on total pointing error
-                double errMag = Math.Sqrt(yawError*yawError + pitchError*pitchError);
-                const double blendRadius = 0.2;     // radians over which to ramp in damping  
-                double blend = MathHelper.Clamp(1 - (errMag / blendRadius), 0, 1);
-
-                // PID outputs
-                double rawYaw   = yawPID  .Compute(yawError,   t) + ffYaw;
-                double rawPitch = pitchPID.Compute(pitchError, t) + ffPitch;
-
-                // apply blended damping “brake”
-                rawYaw   -= blend * adaptiveDamp * localYawRate;
-                rawPitch -= blend * adaptiveDamp * localPitchRate;
-
-                // clamp & apply
-                const double maxGyro = Math.PI*2;
-                double yawOut   = MathHelper.Clamp(rawYaw,   -maxGyro, maxGyro);
-                double pitchOut = MathHelper.Clamp(rawPitch, -maxGyro, maxGyro);
-
-                GyroUtils.ApplyGyroOverride(gyros, refMatrix, pitchOut, yawOut, 0);
-
-                previousDirection = refMatrix.Forward;
+                GyroUtils.ApplyGyroOverride(gyros, refMatrix, pitchInput, yawInput, 0);
             }
-
-                        
-            private static void DirectionToPitchYaw(
-                Vector3D forward,   // ship’s forward
-                Vector3D right,     // ship’s right (not left!)
-                Vector3D up,        // ship’s up
-                Vector3D targetDir, // normalized aim direction
-                out double yaw,
-                out double pitch
-            )
-            {
-                // 1) split target into “up” vs “horizontal” parts
-                var upComp = VectorUtils.Project(targetDir, up);
-                var horizComp = targetDir - upComp;
-
-                // 2) angles between forward/horizontal and full/ horizontal
-                yaw = VectorUtils.GetAngle(forward, horizComp);
-                pitch = VectorUtils.GetAngle(targetDir, horizComp);
-
-                // 3) sign‐bit: if target is to your right, positive yaw; to your left, negative
-                yaw *= -Math.Sign(right.Dot(targetDir));
-                //    if target is above your plane it's positive pitch, else negative
-                pitch *= -Math.Sign(up.Dot(targetDir));
-
-                // 4) exactly behind you?
-                if (yaw == 0 && pitch == 0 && targetDir.Dot(forward) < 0)
-                    yaw = Math.PI;
-            }
-
         }
     }
 }
