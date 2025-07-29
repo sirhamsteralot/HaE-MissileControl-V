@@ -105,7 +105,7 @@ namespace IngameScript
             private double worldMaxSpeed;
             private double proximityDetonationDistance = 5;
             private double proximityArmingDistance = 25;
-            private int timeBetweenBroadcast = 60*3;
+            private int timeBetweenBroadcast = 60;
 
             private DebugAPI debug;
 
@@ -228,6 +228,7 @@ namespace IngameScript
             {
                 if (currentPbTime - lastBroadcastTime < timeBetweenBroadcast)
                     return;
+
                 lastBroadcastTime = currentPbTime;
 
                 if (soundBlocks.Count > 0)
