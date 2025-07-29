@@ -228,15 +228,16 @@ namespace IngameScript
             {
                 if (currentPbTime - lastBroadcastTime < timeBetweenBroadcast)
                     return;
+                lastBroadcastTime = currentPbTime;
 
                 if (soundBlocks.Count > 0)
+                {
+                    foreach (var soundblock in soundBlocks)
                     {
-                        foreach (var soundblock in soundBlocks)
-                        {
-                            soundblock.Enabled = true;
-                            soundblock.Play();
-                        }
+                        soundblock.Enabled = true;
+                        soundblock.Play();
                     }
+                }
 
                 soundBlocks.Clear();
 
