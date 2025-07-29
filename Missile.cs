@@ -36,7 +36,7 @@ namespace IngameScript
             private const double DeltaTime = 1.0 / 60.0;
             private const double predictionTimeCap = 30;
 
-            private const double CruisingHeight = 1.15;
+            private const double CruisingHeightRatio = 1.13;
             private const long targetUpdatedTimeoutSeeker = 60 * 60;
 
             public enum MissileHealth
@@ -92,6 +92,7 @@ namespace IngameScript
             private Vector3D planetCenterPos;
             private double planetGravity;
             private double planetseaLevelRadius;
+            private double currentCruisingRatio;
             private RadarTrackingModule radarTrackingModule;
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
@@ -314,7 +315,7 @@ namespace IngameScript
                     AimInDirection(launchForward, currentPbTime);
                     ThrustUtils.SetThrustBasedDot(thrusters, launchForward);
                 }
-                else if (lifeTimeCounter < 60 * 2 && planetGravity != 0)
+                else if (lifeTimeCounter < 60 * 5 && planetGravity != 0)
                 {
                     long localCounter = lifeTimeCounter - 60 * 1;
 
@@ -326,7 +327,7 @@ namespace IngameScript
 
                     AimInDirection(aimVector, currentPbTime);
                 }
-                else if (lifeTimeCounter < 60 * 5 && planetGravity != 0)
+                else if (lifeTimeCounter < 60 * 7 && planetGravity != 0)
                 {
                     if (launchForward == Vector3D.Zero)
                         launchForward = Forward;
@@ -366,7 +367,7 @@ namespace IngameScript
                         Vector3D toCenter = planetCenterPos - Position;
                         double currentDist = toCenter.Length();
                         Vector3D radialDir = Vector3D.Normalize(toCenter);
-                        double desiredDist = planetseaLevelRadius * CruisingHeight;
+                        double desiredDist = planetseaLevelRadius * CruisingHeightRatio;
 
                         // 2) Great-circle tangent direction toward target
                         Vector3D toTarget = predictedExternalPosition - Position;
@@ -436,11 +437,18 @@ namespace IngameScript
                         Vector3D toCenter = planetCenterPos - Position;
                         double currentDist = toCenter.Length();
                         Vector3D radialDir = Vector3D.Normalize(toCenter);
-                        double desiredDist = planetseaLevelRadius * CruisingHeight;
+                        if (currentCruisingRatio == 0)
+                        {
+                            currentCruisingRatio = currentDist / planetseaLevelRadius;
+                        }
 
-                        // 2) True tangential dir from your current velocity
-                        Vector3D v_tang_un = Velocity - radialDir * Vector3D.Dot(Velocity, radialDir);
-                        Vector3D tangent = Vector3D.Normalize(v_tang_un);
+                        double desiredDist = planetseaLevelRadius * currentCruisingRatio;
+
+                        // 2) Great-circle tangent direction toward target
+                        Vector3D toTarget = Position + launchForward*10000 - Position;
+                        double targetAltitude = toTarget.Normalize();
+                        Vector3D greatCircleDir = Vector3D.Normalize(Vector3D.Cross(Vector3D.Cross(radialDir, toTarget), radialDir));
+                        Vector3D tangent = Vector3D.Normalize(greatCircleDir);
 
                         // 3) Velocity‑error P‑term
                         double kP = 0.75;
