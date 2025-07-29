@@ -68,6 +68,8 @@ namespace IngameScript
             public List<IMyGasTank> gasTanks = new List<IMyGasTank>();
             public List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
             public List<IMyShipConnector> connectors = new List<IMyShipConnector>();
+            public List<IMySoundBlock> soundBlocks = new List<IMySoundBlock>();
+            public List<IMyBroadcastController> broadcastControllers = new List<IMyBroadcastController>();
 
             public IMyFlightMovementBlock flightMovementBlock;
             public IMyOffensiveCombatBlock offensiveCombatBlock;
@@ -93,6 +95,9 @@ namespace IngameScript
             private RadarTrackingModule radarTrackingModule;
             private Vector3D majorityThrustDirectionLocal;
             private IMyTerminalBlock thrustDirectionReference;
+            private long lastBroadcastTime = 0;
+            private int currentLine = 0;
+            private string[] trollingScript = null;
 
             private PIDController yawPID = new PIDController(6, 0.0, 0.0);
             private PIDController pitchPID = new PIDController(6, 0.0, 0.0);
@@ -100,10 +105,11 @@ namespace IngameScript
             private double worldMaxSpeed;
             private double proximityDetonationDistance = 5;
             private double proximityArmingDistance = 25;
+            private int timeBetweenBroadcast = 60*3;
 
             private DebugAPI debug;
 
-            public Missile(double worldMaxSpeed, double proximityDetonationDistance, double proximityArmingDistance, DebugAPI debug)
+            public Missile(double worldMaxSpeed, double proximityDetonationDistance, double proximityArmingDistance, Vector3D launchForward, DebugAPI debug)
             {
                 this.debug = debug;
                 this.worldMaxSpeed = worldMaxSpeed;
@@ -111,6 +117,7 @@ namespace IngameScript
                 this.Health = MissileHealth.Unknown;
                 this.proximityDetonationDistance = proximityDetonationDistance;
                 this.proximityArmingDistance = proximityArmingDistance;
+                this.launchForward = launchForward;
             }
 
             public bool Initialize(double missileMass = 0)
@@ -207,12 +214,63 @@ namespace IngameScript
                         throw new Exception("missile flight state unknown or other; this should never be reached");
                 }
 
+                UpdateTrollingLogic(currentPbTime);
+
                 lifeTimeCounter++;
             }
 
             public void UpdateTargetedEntity(DLBus.DLBusDetectedEntity detectedEntity)
             {
                 ExternalTarget = detectedEntity;
+            }
+
+            private void UpdateTrollingLogic(long currentPbTime)
+            {
+                if (currentPbTime - lastBroadcastTime < timeBetweenBroadcast)
+                    return;
+
+                if (soundBlocks.Count > 0)
+                    {
+                        foreach (var soundblock in soundBlocks)
+                        {
+                            soundblock.Enabled = true;
+                            soundblock.Play();
+                        }
+                    }
+
+                soundBlocks.Clear();
+
+                if (broadcastControllers.Count > 0)
+                {
+                    foreach (var controller in broadcastControllers)
+                    {
+                        if (!string.IsNullOrWhiteSpace(controller.CustomData))
+                        {
+                            IMyChatBroadcastControllerComponent BroadcastChat;
+                            if (!controller.Components.TryGet(out BroadcastChat))
+                                return;
+
+                            if (trollingScript == null)
+                            {
+                                trollingScript = controller.CustomData.Split('\n');
+                            }
+
+                            if (currentLine > trollingScript.Length - 1)
+                            {
+                                return;
+                            }
+
+                            string line = trollingScript[currentLine];
+                            if (!string.IsNullOrWhiteSpace(line))
+                            {
+                                BroadcastChat.SendMessage(line);
+                            }
+
+                            currentLine++;
+                        }
+                    }
+
+                }
             }
 
             private void UpdateFuelCounter()
@@ -254,7 +312,7 @@ namespace IngameScript
                     AimInDirection(launchForward, currentPbTime);
                     ThrustUtils.SetThrustBasedDot(thrusters, launchForward);
                 }
-                else if (lifeTimeCounter < 60 * 5 && planetGravity != 0)
+                else if (lifeTimeCounter < 60 * 2 && planetGravity != 0)
                 {
                     long localCounter = lifeTimeCounter - 60 * 1;
 
@@ -265,6 +323,14 @@ namespace IngameScript
                     Vector3D aimVector = Vector3D.Normalize(launchForward + (ratio * planetUpDirection));
 
                     AimInDirection(aimVector, currentPbTime);
+                }
+                else if (lifeTimeCounter < 60 * 5 && planetGravity != 0)
+                {
+                    if (launchForward == Vector3D.Zero)
+                        launchForward = Forward;
+
+                    AimInDirection(launchForward, currentPbTime);
+                    ThrustUtils.SetThrustBasedDot(thrusters, launchForward);
                 }
                 else
                 {

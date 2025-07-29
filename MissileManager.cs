@@ -53,6 +53,8 @@ namespace IngameScript
                 List<IMyGasTank> gasTanks,
                 List<IMyBatteryBlock> batteries,
                 List<IMyShipConnector> connectors,
+                List<IMyBroadcastController> broadcastControllers,
+                List<IMySoundBlock> soundBlocks,
                 DLBus.DLBusDetectedEntity target = null)
             {
                 double missileWeight = 0;
@@ -73,9 +75,11 @@ namespace IngameScript
                 yield return true;
 
                 if (cockpit != null)
+                {
                     missileWeight -= cockpit.CalculateShipMass().PhysicalMass;
+                }
 
-                Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance, debug);
+                Missile missile = new Missile(worldMaxSpeed, proximityDetonationDistance, proximityArmingDistance, referenceBlock.WorldMatrix.Forward, debug);
 
                 for (int i = gyros.Count - 1; i >= 0; i--)
                 {
@@ -146,6 +150,24 @@ namespace IngameScript
                     {
                         missile.batteries.Add(batteries[i]);
                         batteries.RemoveAt(i);
+                    }
+                }
+
+                for (int i = broadcastControllers.Count - 1; i >= 0; i--)
+                {
+                    if (!broadcastControllers[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.broadcastControllers.Add(broadcastControllers[i]);
+                        broadcastControllers.RemoveAt(i);
+                    }
+                }
+
+                for (int i = soundBlocks.Count - 1; i >= 0; i--)
+                {
+                    if (!soundBlocks[i].IsSameConstructAs(referenceBlock))
+                    {
+                        missile.soundBlocks.Add(soundBlocks[i]);
+                        soundBlocks.RemoveAt(i);
                     }
                 }
 

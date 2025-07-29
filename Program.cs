@@ -50,6 +50,8 @@ namespace IngameScript
         List<IMyGasTank> gasTanks = new List<IMyGasTank>();
         List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
         List<IMyShipConnector> connectors = new List<IMyShipConnector>();
+        List<IMySoundBlock> soundBlocks = new List<IMySoundBlock>();
+        List<IMyBroadcastController> broadcastControllers = new List<IMyBroadcastController>();
         IMyCockpit mainCockpit;
 
         List<DLBus.DLBusDetectedEntity> newDetectedEntitiesList = new List<DLBus.DLBusDetectedEntity>();
@@ -163,6 +165,8 @@ namespace IngameScript
             gasTanks.Clear();
             batteries.Clear();
             warheads.Clear();
+            broadcastControllers.Clear();
+            soundBlocks.Clear();
 
             GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, x =>
             {
@@ -238,6 +242,18 @@ namespace IngameScript
                 {
                     batteries.Add(battery);
                     return false;
+                }
+
+                var soundblock = x as IMySoundBlock;
+                if (soundblock != null)
+                {
+                    soundBlocks.Add(soundblock);
+                }
+
+                var broadcastController = x as IMyBroadcastController;
+                if (broadcastController != null)
+                {
+                    broadcastControllers.Add(broadcastController);
                 }
 
                 return false;
@@ -396,7 +412,7 @@ namespace IngameScript
             {
                 if (currentlySelectedEntity != null)
                 {
-                    scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors, currentlySelectedEntity));
+                    scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors, broadcastControllers, soundBlocks, currentlySelectedEntity));
                     Echo($"Launched at {currentlySelectedEntity.LastKnownLocation}");
                 }
                 else
@@ -408,7 +424,7 @@ namespace IngameScript
 
             if (normalizedArgument.StartsWith("dumblaunch"))
             {
-                scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors));
+                scheduler.AddTask(missileManager.LaunchMissile(mainCockpit, movementBlocks, combatBlocks, mergeBlocks, gyros, thrusters, warheads, gasTanks, batteries, connectors, broadcastControllers, soundBlocks));
             }
 
             return false;
