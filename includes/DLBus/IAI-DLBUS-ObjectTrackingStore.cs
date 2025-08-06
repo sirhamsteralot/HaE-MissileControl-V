@@ -222,6 +222,9 @@ namespace IngameScript
 
                 private bool ClustersCanBeMerged(Cluster clusterA, Cluster clusterB)
                 {
+                    if (clusterA.clusterID == clusterB.clusterID)
+                        return true;
+
                     long timeDifferenceB = clusterA.LastUpdateTime - clusterB.LastUpdateTime;
                     Vector3D predictedLocationB = PredictLocation(clusterB.Centroid, clusterB.AverageVelocity, timeDifferenceB);
 
@@ -237,6 +240,9 @@ namespace IngameScript
 
                 private bool IsPartOfCluster(Cluster cluster, DLBus_GrokBus.DLBusGrokEntity detection, long detectionTime)
                 {
+                    if (detection.EntityId == cluster.clusterID)
+                        return true;
+
                     Vector3D predictedLocationCluster = PredictLocation(cluster.Centroid, cluster.AverageVelocity, detectionTime - cluster.LastUpdateTime);
 
                     double positionDist = Vector3D.DistanceSquared(predictedLocationCluster, detection.LastKnownLocation);
