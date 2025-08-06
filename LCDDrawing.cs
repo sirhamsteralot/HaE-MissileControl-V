@@ -36,7 +36,7 @@ namespace IngameScript
             private List<IMyCockpit> cockpitSurfaces = new List<IMyCockpit>();
             private List<int> cockpitSurfaceConfiguration = new List<int>();
             private List<Missile> launchedMissiles = new List<Missile>();
-            private DLBus.DLBusDetectedEntity currentlySelectedTarget;
+            private DLBus_GrokBus.DLBusGrokEntity currentlySelectedTarget;
 
             private long counter = 0;
 
@@ -67,7 +67,7 @@ namespace IngameScript
                 launchedMissiles.AddRange(missiles);
             }
 
-            public void SelectTarget(DLBus.DLBusDetectedEntity selectedTarget)
+            public void SelectTarget(DLBus_GrokBus.DLBusGrokEntity selectedTarget)
             {
                 currentlySelectedTarget = selectedTarget;
             }
@@ -119,7 +119,7 @@ namespace IngameScript
                 drawFrame.Dispose();
             }
 
-            private void DrawSelectedTarget(ref MySpriteDrawFrame drawFrame, RectangleF viewPort, Vector2 surfaceSize, DLBus.DLBusDetectedEntity selectedTarget, long currentTime)
+            private void DrawSelectedTarget(ref MySpriteDrawFrame drawFrame, RectangleF viewPort, Vector2 surfaceSize, DLBus_GrokBus.DLBusGrokEntity selectedTarget, long currentTime)
             {
                 float scaling = GetScaling(surfaceSize);
                 float sideMarginP = 0.02f * viewPort.Width;
@@ -129,7 +129,7 @@ namespace IngameScript
 
                 if (selectedTarget != null)
                 {
-                    if (currentTime - selectedTarget.DetectionReceivedTime > selectedTargetTimeoutTime)
+                    if (currentTime - selectedTarget.EntityReceivedTime > selectedTargetTimeoutTime)
                     {
                         boxColour = Color.Orange;
                     }

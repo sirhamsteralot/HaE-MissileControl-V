@@ -86,7 +86,7 @@ namespace IngameScript
             public Vector3D Velocity { get; private set; }
             public Vector3D Forward => GetForward();
 
-            public DLBus.DLBusDetectedEntity ExternalTarget { get; private set; }
+            public DLBus_GrokBus.DLBusGrokEntity ExternalTarget { get; private set; }
 
             private Vector3D launchForward;
             private Vector3D planetCenterPos;
@@ -220,7 +220,7 @@ namespace IngameScript
                 lifeTimeCounter++;
             }
 
-            public void UpdateTargetedEntity(DLBus.DLBusDetectedEntity detectedEntity)
+            public void UpdateTargetedEntity(DLBus_GrokBus.DLBusGrokEntity detectedEntity)
             {
                 ExternalTarget = detectedEntity;
             }
@@ -348,7 +348,9 @@ namespace IngameScript
                 {
                     LockType = MissileLockType.External;
 
-                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocity);
+                    double targetAge = currentPbTime - ExternalTarget.EntityReceivedTime * (1/60);
+
+                    Vector3D predictedExternalPosition = ExternalTarget.LastKnownLocation + (ExternalTarget.LastKnownVelocityMS * targetAge);
                     Vector3D distanceFromTarget = predictedExternalPosition - Position;
                     double distanceSquared = distanceFromTarget.LengthSquared();
 
@@ -358,7 +360,7 @@ namespace IngameScript
                     if (OriginalLaunchDistance == 0)
                         OriginalLaunchDistance = CurrentTargetDistance;
 
-                    Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocity * 60;
+                    Vector3D closingVelocity = Velocity - ExternalTarget.LastKnownVelocityMS;
                     Vector3D roughTargetLocationPrediction = predictedExternalPosition * (closingVelocity.LengthSquared() / distanceSquared);
 
                     if (planetGravity > 1e-3 && distanceSquared > 2500 * 2500)
@@ -422,7 +424,7 @@ namespace IngameScript
                         }
                     }
 
-                    if (distanceSquared < 2500 * 2500 || (currentPbTime - ExternalTarget.DetectionReceivedTime) > targetUpdatedTimeoutSeeker)
+                    if (distanceSquared < 2500 * 2500 || (currentPbTime - ExternalTarget.EntityReceivedTime) > targetUpdatedTimeoutSeeker)
                     {
                         FlightState = MissileFlightState.Terminal;
                     }
@@ -511,7 +513,7 @@ namespace IngameScript
                     // No target, fly straight
                     Vector3D fallbackDirection = Vector3D.Normalize(Velocity);
 
-                    if (ExternalTarget != null && (currentPbTime - ExternalTarget.DetectionReceivedTime) < targetUpdatedTimeoutSeeker)
+                    if (ExternalTarget != null && (currentPbTime - ExternalTarget.EntityReceivedTime) < targetUpdatedTimeoutSeeker)
                     {
                         LockType = MissileLockType.External;
                         fallbackDirection = Vector3D.Normalize(ExternalTarget.LastKnownLocation - Position);

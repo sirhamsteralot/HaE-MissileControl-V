@@ -39,18 +39,18 @@ namespace IngameScript
                     public int clusterID;
                     public long LastUpdateTime;
 
-                    public HashSet<DLBusDetectedEntity> ContainedDetections = new HashSet<DLBusDetectedEntity>();
+                    public HashSet<DLBus_GrokBus.DLBusGrokEntity> ContainedDetections = new HashSet<DLBus_GrokBus.DLBusGrokEntity>();
 
                     public Cluster(long id)
                     {
                         clusterID = (int)id;
                     }
 
-                    public bool UpdateDetection(DLBusDetectedEntity detection, long currentTime)
+                    public bool UpdateDetection(DLBus_GrokBus.DLBusGrokEntity detection, long currentTime)
                     {
                         if (ContainedDetections.Add(detection))
                         {
-                            LastUpdateTime = detection.DetectionReceivedTime;
+                            LastUpdateTime = detection.EntityReceivedTime;
                             return UpdateValues(currentTime);
                         }
 
@@ -71,7 +71,7 @@ namespace IngameScript
 
                     private bool UpdateValues(long currentTime)
                     {
-                        ContainedDetections.RemoveWhere(d => currentTime - d.DetectionReceivedTime > TIMEOUTTICKS);
+                        ContainedDetections.RemoveWhere(d => currentTime - d.EntityReceivedTime > TIMEOUTTICKS);
 
                         if (ContainedDetections.Count == 0)
                         {
@@ -88,13 +88,13 @@ namespace IngameScript
 
                         foreach (var detection in ContainedDetections)
                         {
-                            long age = currentTime - detection.DetectionReceivedTime;
-                            Vector3D predictedLocation = PredictLocation(detection.LastKnownLocation, detection.LastKnownVelocity, age);
+                            long age = currentTime - detection.EntityReceivedTime;
+                            Vector3D predictedLocation = PredictLocation(detection.LastKnownLocation, detection.LastKnownVelocityMS, age);
 
                             sumPositions += predictedLocation;
 
                             double weight = Math.Exp(-0.01 * age); // λ = 0.01 — tweak for your time units
-                            weightedVelocitySum += detection.LastKnownVelocity * weight;
+                            weightedVelocitySum += detection.LastKnownVelocityMS * weight;
                             totalVelocityWeight += weight;
 
 
@@ -126,10 +126,10 @@ namespace IngameScript
                 }
 
                 public List<Cluster> clusters = new List<Cluster>();
-                public List<DLBusDetectedEntity> detections = new List<DLBusDetectedEntity>();
+                public List<DLBus_GrokBus.DLBusGrokEntity> detections = new List<DLBus_GrokBus.DLBusGrokEntity>();
                 public Random idGenerator = new Random();
 
-                public void AddDetection(DLBusDetectedEntity detection, long currentTime)
+                public void AddDetection(DLBus_GrokBus.DLBusGrokEntity detection, long currentTime)
                 {
                     if (clusters.Count < 1)
                     {
@@ -198,20 +198,19 @@ namespace IngameScript
                         clusters.RemoveRange(writeIndex, clusters.Count - writeIndex);
                 }
 
-                public HashSet<DLBusDetectedEntity> GetClustersAsDetections()
+                public HashSet<DLBus_GrokBus.DLBusGrokEntity> GetClustersAsDetections()
                 {
-                    var result = new HashSet<DLBusDetectedEntity>();
+                    var result = new HashSet<DLBus_GrokBus.DLBusGrokEntity>();
 
                     foreach (var cluster in clusters)
                     {
-                        DLBusDetectedEntity entity = new DLBusDetectedEntity()
+                        DLBus_GrokBus.DLBusGrokEntity entity = new DLBus_GrokBus.DLBusGrokEntity()
                         {
-                            DetectionReceivedTime = cluster.LastUpdateTime,
+                            EntityReceivedTime = cluster.LastUpdateTime,
                             LastKnownLocation = cluster.Centroid,
-                            LastKnownVelocity = cluster.AverageVelocity,
-                            Size = cluster.MaxRadius,
-                            detectedEntityType = MyDetectedEntityType.None,
-                            Name = $"Cluster #{cluster.clusterID}",
+                            LastKnownVelocityMS = cluster.AverageVelocity,
+                            EntityType = DLBus_GrokBus.DLBusGrokEntityType.None,
+                            EntityName = $"Cluster #{cluster.clusterID}",
                             EntityId = cluster.clusterID
                         };
 
@@ -236,28 +235,28 @@ namespace IngameScript
                     return similarity >= 0.6f; // Threshold to declare as similar
                 }
 
-                private bool IsPartOfCluster(Cluster cluster, DLBusDetectedEntity detection, long detectionTime)
+                private bool IsPartOfCluster(Cluster cluster, DLBus_GrokBus.DLBusGrokEntity detection, long detectionTime)
                 {
                     Vector3D predictedLocationCluster = PredictLocation(cluster.Centroid, cluster.AverageVelocity, detectionTime - cluster.LastUpdateTime);
 
                     double positionDist = Vector3D.DistanceSquared(predictedLocationCluster, detection.LastKnownLocation);
                     double positionScore = 1f - Math.Min(positionDist / (POSITIONEPSILON + cluster.MaxRadius), 1f); // 1 = match, 0 = max diff
 
-                    float directionScore = VelocityDirectionSimilarity(cluster.AverageVelocity, detection.LastKnownVelocity);
+                    float directionScore = VelocityDirectionSimilarity(cluster.AverageVelocity, detection.LastKnownVelocityMS);
 
                     double similarity = POSITIONWEIGHT * positionScore + DIRECTIONWEIGHT * directionScore;
 
                     return similarity >= 0.6f; // Threshold to declare as similar
                 }
 
-                private float VelocityDirectionSimilarity(Vector3D a, Vector3D b)
+                private float VelocityDirectionSimilarity(Vector3 a, Vector3 b)
                 {
-                    double dot = a.Dot(b);
-                    double magProduct = a.Length() * b.Length();
+                    float dot = a.Dot(b);
+                    float magProduct = a.Length() * b.Length();
                     if (magProduct == 0) return 0;
 
-                    double cosine = dot / magProduct;
-                    return (float)Math.Max(0f, cosine);
+                    float cosine = dot / magProduct;
+                    return Math.Max(0f, cosine);
                 }
                 
                 private Vector3D PredictLocation(Vector3D originalLocation, Vector3D velocity, long TimeDifference)

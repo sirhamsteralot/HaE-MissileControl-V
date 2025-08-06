@@ -23,7 +23,7 @@ namespace IngameScript
     public partial class Program : MyGridProgram
     {
         DebugAPI debug;
-        DLBus dlBus;
+        DLBus_GrokBus dlBus;
         DLBus.ObjectTrackingStore externalTrackingStore;
 
         Scheduler scheduler = new Scheduler();
@@ -54,12 +54,12 @@ namespace IngameScript
         List<IMyBroadcastController> broadcastControllers = new List<IMyBroadcastController>();
         IMyCockpit mainCockpit;
 
-        List<DLBus.DLBusDetectedEntity> newDetectedEntitiesList = new List<DLBus.DLBusDetectedEntity>();
+        List<DLBus_GrokBus.DLBusGrokEntity> newDetectedEntitiesList = new List<DLBus_GrokBus.DLBusGrokEntity>();
 
         int update100Counter = 0;
         double averageRuntime = 0;
 
-        DLBus.DLBusDetectedEntity currentlySelectedEntity = null;
+        DLBus_GrokBus.DLBusGrokEntity currentlySelectedEntity = null;
         IMyBroadcastListener missileControlArgumentListener;
 
 
@@ -262,8 +262,8 @@ namespace IngameScript
 
         private void Initialize()
         {
-            dlBus = new DLBus(IGC);
-            dlBus.OnEntityDetectedNetwork += OnNetworkEntityDetected;
+            dlBus = new DLBus_GrokBus(IGC);
+            dlBus.OnGrokEntityReceived += OnNetworkEntityDetected;
 
             if (externalTrackingStore == null)
                 externalTrackingStore = new DLBus.ObjectTrackingStore();
@@ -364,7 +364,7 @@ namespace IngameScript
             {
                 var detections = externalTrackingStore.GetClustersAsDetections();
 
-                DLBus.DLBusDetectedEntity closestMatch = null;
+                DLBus_GrokBus.DLBusGrokEntity closestMatch = null;
                 double closestDotDir = -1;
 
                 foreach (var detection in detections)
@@ -430,13 +430,22 @@ namespace IngameScript
             return false;
         }
 
-        private void OnNetworkEntityDetected(DLBus.DLBusDetectedEntity detectedEntity)
+        private void OnNetworkEntityDetected(DLBus_GrokBus.DLBusGrokEntity grokEntity)
         {
-            if (currentlySelectedEntity != null && currentlySelectedEntity.EntityId == detectedEntity.EntityId)
-                currentlySelectedEntity = detectedEntity;
+            if (grokEntity.Relationship == MyRelationsBetweenPlayerAndBlock.FactionShare &&
+                grokEntity.Relationship == MyRelationsBetweenPlayerAndBlock.Friends &&
+                grokEntity.Relationship == MyRelationsBetweenPlayerAndBlock.Owner)
+            {
+                // Friendly
+            }
+            else
+            {
+                if (currentlySelectedEntity != null && currentlySelectedEntity.EntityId == grokEntity.EntityId)
+                        currentlySelectedEntity = grokEntity;
 
-            newDetectedEntitiesList.Add(detectedEntity);
-            externalTrackingStore.AddDetection(detectedEntity, Runtime.LifetimeTicks);
+                newDetectedEntitiesList.Add(grokEntity);
+                externalTrackingStore.AddDetection(grokEntity, Runtime.LifetimeTicks);
+            }
         }
     }
 }

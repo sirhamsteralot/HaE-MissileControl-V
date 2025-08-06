@@ -55,7 +55,7 @@ namespace IngameScript
                 List<IMyShipConnector> connectors,
                 List<IMyBroadcastController> broadcastControllers,
                 List<IMySoundBlock> soundBlocks,
-                DLBus.DLBusDetectedEntity target = null)
+                DLBus_GrokBus.DLBusGrokEntity target = null)
             {
                 double missileWeight = 0;
 
@@ -211,7 +211,7 @@ namespace IngameScript
                 }
             }
 
-            public void UpdateDetectionsDeferred(List<DLBus.DLBusDetectedEntity> updatedEntities)
+            public void UpdateDetectionsDeferred(List<DLBus_GrokBus.DLBusGrokEntity> updatedEntities)
             {
                 foreach (var missile in launchedMissiles)
                 {
